@@ -46,8 +46,8 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 |---|---|
 | Region record | **P2** (macOS native `screencapture -v -i`; SCK planned) |
 | Show cursor | **P2** (`-k` clicks) |
-| Format | **P2** default `.mov`; optional `.mp4` via system `avconvert` — **no ffmpeg** |
-| GIF | Deferred (TECH_PLAN) |
+| Format | **P2** interim `.mov` / system tools; **target** trimmed bundled ffmpeg → mp4 (TECH_PLAN option B) |
+| GIF | Planned once trimmed ffmpeg is vendored (TECH_PLAN) |
 | Preview · download · clipboard | Partial (save path; clipboard later) |
 
 ## Hotkeys (P1 defaults)
@@ -66,7 +66,7 @@ hotkey → capture → annotate → export
 
 - `capture` — macOS `screencapture` today; Windows / Linux native paths next.
 - `annotate` — vector-ish strokes flattened onto RGBA.
-- `record` — native / system capture+encode (see [`TECH_PLAN.md`](TECH_PLAN.md)); no bundled ffmpeg.
+- `record` — native capture + encode via system tools and/or **trimmed bundled ffmpeg** (see [`TECH_PLAN.md`](TECH_PLAN.md) option B).
 - `export` — clipboard (`arboard`), filesystem PNG.
 - `hotkey` — `global-hotkey` background listener.
 - Shell UI — NSH Rust `App`.
