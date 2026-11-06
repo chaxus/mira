@@ -5,6 +5,7 @@ mod capture;
 mod chrome;
 mod export;
 mod hotkey;
+mod ocr;
 mod pin;
 mod preview;
 mod record;
@@ -649,9 +650,39 @@ fn action_row_export(
                 }
             }
         }))
-        .child(press_chip("OCR (P2)", {
+        .child(press_chip("OCR", {
             let status = status.clone();
-            move || status.set(format!("{} lands in P2", ExportTarget::ExtractText.as_str()))
+            let meta = meta.clone();
+            let doc = doc.clone();
+            move || {
+                let guard = doc.lock();
+                let Some(document) = guard.as_ref() else {
+                    status.set("capture something first".into());
+                    return;
+                };
+                let img = document.render();
+                match ocr::extract_text(&img) {
+                    Ok(text) => {
+                        let preview: String = text.chars().take(160).collect();
+                        meta.set(preview);
+                        if let Err(e) = arboard::Clipboard::new()
+                            .and_then(|mut c| c.set_text(text.clone()))
+                        {
+                            status.set(format!(
+                                "{} ok (clipboard copy failed: {e})",
+                                ExportTarget::ExtractText.as_str()
+                            ));
+                        } else {
+                            status.set(format!(
+                                "{} — copied {} chars",
+                                ExportTarget::ExtractText.as_str(),
+                                text.len()
+                            ));
+                        }
+                    }
+                    Err(e) => status.set(format!("ocr failed: {e}")),
+                }
+            }
         }))
 }
 
