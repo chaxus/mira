@@ -1,5 +1,6 @@
 //! Annotation tools aligned with Lark's screenshot toolbar (bitmap ops).
 
+use ab_glyph::{Font, FontArc, PxScale, ScaleFont};
 use image::{Rgba, RgbaImage};
 
 /// Active tool while editing a capture.
@@ -69,6 +70,13 @@ pub enum Stroke {
         x1: i32,
         y1: i32,
         block: u32,
+    },
+    /// Diagonal tiled watermark text across the frame (or a region).
+    Watermark {
+        text: String,
+        color: [u8; 4],
+        /// Pixel size of the glyph.
+        size: f32,
     },
 }
 
@@ -158,6 +166,7 @@ fn apply_stroke(img: &mut RgbaImage, stroke: &Stroke) {
             y1,
             block,
         } => apply_mosaic(img, *x0, *y0, *x1, *y1, (*block).max(2)),
+        Stroke::Watermark { text, color, size } => apply_watermark(img, text, *color, *size),
     }
 }
 
@@ -318,6 +327,109 @@ fn apply_mosaic(img: &mut RgbaImage, x0: i32, y0: i32, x1: i32, y1: i32, block: 
     }
 }
 
+fn load_font() -> Option<FontArc> {
+    const CANDIDATES: &[&str] = &[
+        "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/Library/Fonts/Arial.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "C:\\Windows\\Fonts\\arial.ttf",
+    ];
+    for path in CANDIDATES {
+        if let Ok(bytes) = std::fs::read(path) {
+            if let Ok(font) = FontArc::try_from_vec(bytes) {
+                return Some(font);
+            }
+        }
+    }
+    None
+}
+
+fn apply_watermark(img: &mut RgbaImage, text: &str, color: [u8; 4], size: f32) {
+    let Some(font) = load_font() else {
+        // Fallback: diagonal dashed line pattern if no system font is found.
+        let w = img.width() as i32;
+        let h = img.height() as i32;
+        for i in (-h..w).step_by(24) {
+            draw_line(img, i, 0, i + h, h, color, 2);
+        }
+        return;
+    };
+    let scale = PxScale::from(size.max(10.0));
+    let scaled = font.as_scaled(scale);
+    let text_w = text
+        .chars()
+        .map(|c| scaled.h_advance(scaled.glyph_id(c)))
+        .sum::<f32>()
+        .max(1.0);
+    let step_x = (text_w + 48.0) as i32;
+    let step_y = (size * 2.5) as i32;
+    let w = img.width() as i32;
+    let h = img.height() as i32;
+    let mut row = 0i32;
+    while row < h + step_y {
+        let mut col = -step_x + (row / step_y) % 2 * (step_x / 2);
+        while col < w + step_x {
+            draw_text(img, &font, scale, col as f32, row as f32, text, color);
+            col += step_x;
+        }
+        row += step_y;
+    }
+}
+
+fn draw_text(
+    img: &mut RgbaImage,
+    font: &FontArc,
+    scale: PxScale,
+    x: f32,
+    y: f32,
+    text: &str,
+    color: [u8; 4],
+) {
+    let scaled = font.as_scaled(scale);
+    let mut caret = x;
+    for ch in text.chars() {
+        let glyph = scaled.scaled_glyph(ch);
+        let Some(outlined) = scaled.outline_glyph(glyph) else {
+            caret += scaled.h_advance(scaled.glyph_id(ch));
+            continue;
+        };
+        let bounds = outlined.px_bounds();
+        outlined.draw(|gx, gy, cover| {
+            if cover <= 0.05 {
+                return;
+            }
+            let px = (bounds.min.x + gx as f32).round() as i32;
+            let py = (y + bounds.min.y + gy as f32).round() as i32;
+            let alpha = (color[3] as f32 * cover) as u8;
+            blend(img, px, py, [color[0], color[1], color[2], alpha]);
+        });
+        caret += scaled.h_advance(scaled.glyph_id(ch));
+        let _ = caret;
+    }
+}
+
+fn blend(img: &mut RgbaImage, x: i32, y: i32, src: [u8; 4]) {
+    if x < 0 || y < 0 {
+        return;
+    }
+    let (x, y) = (x as u32, y as u32);
+    if x >= img.width() || y >= img.height() {
+        return;
+    }
+    let dst = img.get_pixel(x, y).0;
+    let a = src[3] as u32;
+    let inv = 255 - a;
+    let out = [
+        ((src[0] as u32 * a + dst[0] as u32 * inv) / 255) as u8,
+        ((src[1] as u32 * a + dst[1] as u32 * inv) / 255) as u8,
+        ((src[2] as u32 * a + dst[2] as u32 * inv) / 255) as u8,
+        255,
+    ];
+    img.put_pixel(x, y, Rgba(out));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -364,5 +476,17 @@ mod tests {
         let a = img.get_pixel(0, 0).0;
         let b = img.get_pixel(1, 0).0;
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn watermark_changes_pixels() {
+        let mut doc = Document::new(blank(120, 80));
+        doc.push(Stroke::Watermark {
+            text: "Mira".into(),
+            color: [0, 0, 0, 80],
+            size: 18.0,
+        });
+        let out = doc.render();
+        assert_ne!(out.as_raw(), blank(120, 80).as_raw());
     }
 }

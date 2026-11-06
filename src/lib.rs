@@ -202,6 +202,7 @@ fn annotate_row(tool: &Signal<AnnotateTool>) -> impl IntoElement {
         .child(tool_chip("Arrow", AnnotateTool::Arrow, &tool))
         .child(tool_chip("Pen", AnnotateTool::Pen, &tool))
         .child(tool_chip("Mosaic", AnnotateTool::Mosaic, &tool))
+        .child(tool_chip("Watermark", AnnotateTool::Watermark, &tool))
 }
 
 fn action_row_capture(
@@ -458,8 +459,13 @@ fn preview_canvas(
                                     thickness,
                                 }
                             }
-                            AnnotateTool::Text | AnnotateTool::Tag | AnnotateTool::Watermark => {
-                                status.set(format!("{} lands in P2", tool.get().as_str()));
+                            AnnotateTool::Watermark => Stroke::Watermark {
+                                text: "Mira".into(),
+                                color: [0, 0, 0, 70],
+                                size: 28.0,
+                            },
+                            AnnotateTool::Text | AnnotateTool::Tag => {
+                                status.set(format!("{} lands later", tool.get().as_str()));
                                 return;
                             }
                         };
@@ -545,8 +551,13 @@ fn action_row_annotate(
                         y1: h * 3 / 4,
                         block: 12,
                     },
-                    AnnotateTool::Text | AnnotateTool::Tag | AnnotateTool::Watermark => {
-                        status.set(format!("{} lands in P2", tool.get().as_str()));
+                    AnnotateTool::Watermark => Stroke::Watermark {
+                        text: "Mira".into(),
+                        color: [0, 0, 0, 70],
+                        size: 28.0,
+                    },
+                    AnnotateTool::Text | AnnotateTool::Tag => {
+                        status.set(format!("{} lands later", tool.get().as_str()));
                         return;
                     }
                 };
