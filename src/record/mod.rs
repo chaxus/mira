@@ -1,8 +1,10 @@
-//! Screen recording — ScreenCaptureKit in-process on macOS, encode/mux helpers.
+//! Screen recording — platform capture + encode/mux helpers.
 //!
-//! See `docs/TECH_PLAN.md` (option B). macOS prefers `SCRecordingOutput`
-//! (VideoToolbox). Interactive region still uses `screencapture -v -i`.
-//! Finalize for GIF / cross-tool mp4 uses trimmed/PATH ffmpeg when needed.
+//! See `docs/TECH_PLAN.md` (option B).
+//! - macOS: ScreenCaptureKit `SCRecordingOutput` (fullscreen); `screencapture -i` region
+//! - Windows: Graphics Capture + Media Foundation (`windows-capture`)
+//! - Linux: `wf-recorder` (Wayland) or ffmpeg `x11grab`
+//! Finalize for GIF / remux uses trimmed/PATH ffmpeg when needed.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -14,13 +16,18 @@ use crate::ffmpeg;
 #[cfg(target_os = "macos")]
 mod macos_sck;
 
+#[cfg(target_os = "windows")]
+mod windows_wgc;
+
+#[cfg(target_os = "linux")]
+mod linux;
+
 /// Container for a recording session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordOptions {
     pub show_cursor: bool,
     pub format: RecordFormat,
-    /// When true, use interactive region select (`screencapture -i` on macOS).
-    /// Full-display ScreenCaptureKit is used when false.
+    /// Interactive region when the platform supports it.
     pub region: bool,
 }
 
@@ -29,7 +36,6 @@ impl Default for RecordOptions {
         Self {
             show_cursor: true,
             format: RecordFormat::Mp4,
-            // Prefer in-process SCK full display; region still available via CLI.
             region: false,
         }
     }
@@ -40,10 +46,10 @@ impl Default for RecordOptions {
 pub enum RecordFormat {
     /// QuickTime / MOV container.
     Mov,
-    /// Prefer direct SCK mp4 or ffmpeg remux; fall back to `avconvert` / raw.
+    /// Prefer native mp4 or ffmpeg remux.
     #[default]
     Mp4,
-    /// Post-process capture to GIF via ffmpeg (requires side-car or PATH).
+    /// Post-process capture to GIF via ffmpeg.
     Gif,
 }
 
@@ -68,6 +74,8 @@ pub enum RecordError {
 enum Backend {
     #[cfg(target_os = "macos")]
     Sck(macos_sck::SckSession),
+    #[cfg(target_os = "windows")]
+    Wgc(windows_wgc::WgcSession),
     Cli {
         child: Child,
         raw_path: PathBuf,
@@ -79,24 +87,23 @@ pub struct RecordSession {
     backend: Backend,
     options: RecordOptions,
     raw_path: PathBuf,
+    backend_label: &'static str,
 }
 
 impl RecordSession {
     /// Start a screen recording via the platform native path.
-    ///
-    /// Capture uses ScreenCaptureKit when possible; `format` is applied in [`stop`]
-    /// (GIF always post-processes).
     pub fn start(options: RecordOptions) -> Result<Self, RecordError> {
         if options.format == RecordFormat::Gif && !ffmpeg::available() {
             return Err(RecordError::Message(
                 "gif needs ffmpeg — run scripts/fetch-ffmpeg.sh or set MIRA_FFMPEG / PATH".into(),
             ));
         }
-        let (backend, raw_path) = platform_start(&options)?;
+        let (backend, raw_path, backend_label) = platform_start(&options)?;
         Ok(Self {
             backend,
             options,
             raw_path,
+            backend_label,
         })
     }
 
@@ -104,15 +111,9 @@ impl RecordSession {
         &self.raw_path
     }
 
-    /// Whether this session uses in-process ScreenCaptureKit.
-    #[cfg(target_os = "macos")]
-    pub fn is_sck(&self) -> bool {
-        matches!(self.backend, Backend::Sck(_))
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    pub fn is_sck(&self) -> bool {
-        false
+    /// Short label for UI status (e.g. `ScreenCaptureKit`, `WGC`, `ffmpeg`).
+    pub fn backend_label(&self) -> &'static str {
+        self.backend_label
     }
 
     /// Stop recording and return the final media path.
@@ -121,11 +122,14 @@ impl RecordSession {
             backend,
             options,
             raw_path: _,
+            backend_label: _,
         } = self;
 
         let raw = match backend {
             #[cfg(target_os = "macos")]
             Backend::Sck(session) => session.stop()?,
+            #[cfg(target_os = "windows")]
+            Backend::Wgc(session) => session.stop()?,
             Backend::Cli {
                 mut child,
                 raw_path,
@@ -135,6 +139,12 @@ impl RecordSession {
                     let _ = Command::new("kill")
                         .args(["-INT", &child.id().to_string()])
                         .status();
+                    std::thread::sleep(std::time::Duration::from_millis(400));
+                }
+                #[cfg(windows)]
+                {
+                    // ffmpeg / friends accept 'q' on stdin sometimes; fall back to kill.
+                    let _ = child.kill();
                     std::thread::sleep(std::time::Duration::from_millis(400));
                 }
                 let _ = child.kill();
@@ -163,7 +173,13 @@ pub(super) fn media_dir() -> PathBuf {
         if movies.is_dir() {
             return movies;
         }
-        let videos = PathBuf::from(home).join("Videos");
+        let videos = PathBuf::from(&home).join("Videos");
+        if videos.is_dir() {
+            return videos;
+        }
+    }
+    if let Some(profile) = std::env::var_os("USERPROFILE") {
+        let videos = PathBuf::from(profile).join("Videos");
         if videos.is_dir() {
             return videos;
         }
@@ -221,7 +237,6 @@ fn convert_gif(raw: &Path) -> Result<PathBuf, RecordError> {
     Ok(gif)
 }
 
-/// macOS `avconvert` when present; otherwise keep the raw container.
 fn remux_mp4_system(raw: &Path, mp4: &Path) -> Result<PathBuf, RecordError> {
     #[cfg(target_os = "macos")]
     {
@@ -270,43 +285,67 @@ fn which(bin: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn platform_start(options: &RecordOptions) -> Result<(Backend, PathBuf), RecordError> {
+fn platform_start(
+    options: &RecordOptions,
+) -> Result<(Backend, PathBuf, &'static str), RecordError> {
     #[cfg(target_os = "macos")]
     {
-        // Interactive region still needs the system UI; use CLI for that path.
         if !options.region {
             let path = macos_sck::raw_path_for(options.format);
             match macos_sck::SckSession::start(options, &path) {
                 Ok(session) => {
-                    return Ok((Backend::Sck(session), path));
+                    return Ok((Backend::Sck(session), path, "ScreenCaptureKit"));
                 }
                 Err(e) => {
-                    eprintln!("mira: ScreenCaptureKit unavailable ({e}); falling back to screencapture");
+                    eprintln!(
+                        "mira: ScreenCaptureKit unavailable ({e}); falling back to screencapture"
+                    );
                 }
             }
         }
         let path = cli_raw_path();
-        let child = cli_start(options, &path)?;
+        let child = macos_cli_start(options, &path)?;
         return Ok((
             Backend::Cli {
                 child,
                 raw_path: path.clone(),
             },
             path,
+            "screencapture CLI",
         ));
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let path = windows_wgc::raw_path_for(options.format);
+        let session = windows_wgc::WgcSession::start(options, &path)?;
+        return Ok((Backend::Wgc(session), path, "Windows Graphics Capture"));
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let (label, child, path) = linux::start(options)?;
+        return Ok((
+            Backend::Cli {
+                child,
+                raw_path: path.clone(),
+            },
+            path,
+            label,
+        ));
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     {
         let _ = options;
         Err(RecordError::Message(
-            "native recording backends for Windows/Linux are planned in docs/TECH_PLAN.md".into(),
+            "recording is not supported on this platform".into(),
         ))
     }
 }
 
 #[cfg(target_os = "macos")]
-fn cli_start(options: &RecordOptions, path: &Path) -> Result<Child, RecordError> {
+fn macos_cli_start(options: &RecordOptions, path: &Path) -> Result<Child, RecordError> {
     let mut cmd = Command::new("screencapture");
     cmd.arg("-v").arg("-x");
     if options.region {
@@ -327,7 +366,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_is_mp4_fullscreen_sck() {
+    fn default_is_mp4_fullscreen() {
         let opts = RecordOptions::default();
         assert_eq!(opts.format, RecordFormat::Mp4);
         assert!(!opts.region);

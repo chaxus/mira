@@ -708,8 +708,17 @@ fn record_blurb() -> impl IntoElement {
     } else {
         "ffmpeg missing (PATH / vendor / MIRA_FFMPEG)"
     };
+    let backend = if cfg!(target_os = "macos") {
+        "SCK / screencapture"
+    } else if cfg!(target_os = "windows") {
+        "Graphics Capture"
+    } else if cfg!(target_os = "linux") {
+        "wf-recorder / x11grab"
+    } else {
+        "unsupported"
+    };
     text(format!(
-        "SCK fullscreen · cursor {} · {} · {ff} · region via CLI fallback",
+        "{backend} · cursor {} · {} · {ff}",
         if opts.show_cursor { "on" } else { "off" },
         opts.format.as_str()
     ))
@@ -738,11 +747,7 @@ fn action_row_record(
                 }
                 match RecordSession::start(RecordOptions::default()) {
                     Ok(session) => {
-                        let backend = if session.is_sck() {
-                            "ScreenCaptureKit"
-                        } else {
-                            "screencapture CLI"
-                        };
+                        let backend = session.backend_label();
                         meta.set(session.raw_path().display().to_string());
                         *recorder.lock() = Some(session);
                         status.set(format!("recording mp4 via {backend} — press Stop"));
