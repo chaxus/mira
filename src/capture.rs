@@ -49,12 +49,20 @@ pub enum CaptureError {
 ///
 /// Hides Mira's own windows for the duration (best-effort), matching Lark's
 /// “hold Shift to hide the app” behaviour.
+///
+/// `Scroll` is handled by [`crate::scroll::ScrollSession`] — calling this
+/// with [`CaptureMode::Scroll`] returns [`CaptureError::Unsupported`].
 pub fn capture(mode: CaptureMode) -> Result<RgbaImage, CaptureError> {
     let _hidden = crate::chrome::HideGuard::acquire();
     match mode {
         CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
         CaptureMode::Region | CaptureMode::Fullscreen => capture_png(mode),
     }
+}
+
+/// Fullscreen capture used by the scroll stitcher (caller owns chrome hide).
+pub fn platform_capture_fullscreen_for_scroll(path: &std::path::Path) -> Result<(), CaptureError> {
+    platform_capture(CaptureMode::Fullscreen, path)
 }
 
 fn capture_png(mode: CaptureMode) -> Result<RgbaImage, CaptureError> {

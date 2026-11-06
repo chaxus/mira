@@ -7,6 +7,7 @@ mod export;
 mod hotkey;
 mod preview;
 mod record;
+mod scroll;
 
 use annotate::{AnnotateTool, Document, Stroke};
 use capture::CaptureMode;
@@ -15,12 +16,14 @@ use nsh_base::theme;
 use nsh_core::prelude::*;
 use parking_lot::Mutex;
 use record::RecordOptions;
+use scroll::ScrollSession;
 use std::sync::Arc;
 
 /// Shared editing document for the panel (UI thread + capture actions).
 type DocCell = Arc<Mutex<Option<Document>>>;
 type DragCell = Arc<Mutex<Option<(i32, i32)>>>;
 type PenCell = Arc<Mutex<Vec<(i32, i32)>>>;
+type ScrollCell = Arc<Mutex<Option<ScrollSession>>>;
 
 const PREVIEW_WIDTH: f32 = 380.0;
 
@@ -44,6 +47,7 @@ pub fn App() -> impl IntoElement {
     let preview_rev = signal(0u64);
     let drag: DragCell = Arc::new(Mutex::new(None));
     let pen: PenCell = Arc::new(Mutex::new(Vec::new()));
+    let scroll: ScrollCell = Arc::new(Mutex::new(None));
 
     view()
         .flex_1()
@@ -64,6 +68,15 @@ pub fn App() -> impl IntoElement {
                     doc.clone(),
                     preview_uri.clone(),
                     preview_rev.clone(),
+                    scroll.clone(),
+                ))
+                .child(action_row_scroll(
+                    &status,
+                    &meta,
+                    doc.clone(),
+                    preview_uri.clone(),
+                    preview_rev.clone(),
+                    scroll,
                 ))
                 .child(section_label("Annotate"))
                 .child(annotate_row(&tool))
@@ -173,7 +186,7 @@ fn capture_row(mode: &Signal<CaptureMode>) -> impl IntoElement {
         .gap_2()
         .child(mode_chip("Region", CaptureMode::Region, &mode))
         .child(mode_chip("Fullscreen", CaptureMode::Fullscreen, &mode))
-        .child(mode_chip("Scroll (P2)", CaptureMode::Scroll, &mode))
+        .child(mode_chip("Scroll", CaptureMode::Scroll, &mode))
 }
 
 fn annotate_row(tool: &Signal<AnnotateTool>) -> impl IntoElement {
@@ -196,6 +209,7 @@ fn action_row_capture(
     doc: DocCell,
     preview_uri: Signal<String>,
     preview_rev: Signal<u64>,
+    scroll: ScrollCell,
 ) -> impl IntoElement {
     let mode = mode.clone();
     let status = status.clone();
@@ -208,6 +222,19 @@ fn action_row_capture(
                 let hk = hotkey::last_status();
                 if !hk.is_empty() {
                     status.set(hk);
+                }
+                if mode.get() == CaptureMode::Scroll {
+                    match ScrollSession::begin() {
+                        Ok(session) => {
+                            let n = session.steps();
+                            *scroll.lock() = Some(session);
+                            status.set(format!(
+                                "scroll step {n} — scroll the target, then Add page / Finish"
+                            ));
+                        }
+                        Err(e) => status.set(format!("scroll begin failed: {e}")),
+                    }
+                    return;
                 }
                 match capture::capture(mode.get()) {
                     Ok(img) => {
@@ -228,6 +255,58 @@ fn action_row_capture(
                 move || status.set(hotkey::last_status())
             }),
         )
+}
+
+fn action_row_scroll(
+    status: &Signal<String>,
+    meta: &Signal<String>,
+    doc: DocCell,
+    preview_uri: Signal<String>,
+    preview_rev: Signal<u64>,
+    scroll: ScrollCell,
+) -> impl IntoElement {
+    let status = status.clone();
+    let meta = meta.clone();
+    view()
+        .flex_row()
+        .gap_2()
+        .child(press_chip("Add page", {
+            let status = status.clone();
+            let scroll = scroll.clone();
+            move || {
+                let mut guard = scroll.lock();
+                let Some(session) = guard.as_mut() else {
+                    status.set("start scroll with Capture now (Scroll mode)".into());
+                    return;
+                };
+                match session.add_step() {
+                    Ok(()) => status.set(format!(
+                        "scroll step {} — scroll again or Finish",
+                        session.steps()
+                    )),
+                    Err(e) => status.set(format!("add page failed: {e}")),
+                }
+            }
+        }))
+        .child(press_chip("Finish scroll", {
+            let status = status.clone();
+            let meta = meta.clone();
+            move || {
+                let session = scroll.lock().take();
+                let Some(session) = session else {
+                    status.set("no scroll session".into());
+                    return;
+                };
+                match session.finish() {
+                    Ok(img) => {
+                        *doc.lock() = Some(Document::new(img));
+                        status.set("scroll capture stitched".into());
+                        sync_preview(&doc, &preview_uri, &preview_rev, &meta);
+                    }
+                    Err(e) => status.set(format!("stitch failed: {e}")),
+                }
+            }
+        }))
 }
 
 fn preview_canvas(
