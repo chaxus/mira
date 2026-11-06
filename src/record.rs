@@ -1,12 +1,15 @@
-//! Screen recording — native / system tools only (no bundled ffmpeg).
+//! Screen recording — native OS capture, encode/mux via trimmed ffmpeg when present.
 //!
-//! See `docs/TECH_PLAN.md`. Default output is system `.mov` from macOS
-//! `screencapture -v`. Optional `.mp4` uses macOS `avconvert` when present.
+//! See `docs/TECH_PLAN.md` (option B). Capture still uses system tools
+//! (`screencapture -v` on macOS). Finalize prefers bundled/PATH ffmpeg for
+//! `.mp4` / `.gif`, then macOS `avconvert`, then keeps the raw `.mov`.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 use thiserror::Error;
+
+use crate::ffmpeg;
 
 /// Container for a recording session.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,7 +24,7 @@ impl Default for RecordOptions {
     fn default() -> Self {
         Self {
             show_cursor: true,
-            format: RecordFormat::Mov,
+            format: RecordFormat::Mp4,
             region: true,
         }
     }
@@ -30,12 +33,12 @@ impl Default for RecordOptions {
 /// Output format for recordings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RecordFormat {
-    /// System QuickTime / ScreenCapture container (default, zero extra deps).
-    #[default]
+    /// System QuickTime / ScreenCapture container.
     Mov,
-    /// Remux/transcode via macOS `avconvert` when available.
+    /// Prefer ffmpeg remux/transcode; fall back to `avconvert` / raw `.mov`.
+    #[default]
     Mp4,
-    /// Deferred — see TECH_PLAN (never requires shipping ffmpeg).
+    /// Post-process raw capture to GIF via ffmpeg (requires side-car or PATH).
     Gif,
 }
 
@@ -67,10 +70,12 @@ pub struct RecordSession {
 
 impl RecordSession {
     /// Start a screen recording via the platform native path.
+    ///
+    /// Always captures to a system container first; `format` is applied in [`stop`].
     pub fn start(options: RecordOptions) -> Result<Self, RecordError> {
-        if options.format == RecordFormat::Gif {
+        if options.format == RecordFormat::Gif && !ffmpeg::available() {
             return Err(RecordError::Message(
-                "gif export is deferred — see docs/TECH_PLAN.md (no ffmpeg dependency)".into(),
+                "gif needs ffmpeg — run scripts/fetch-ffmpeg.sh or set MIRA_FFMPEG / PATH".into(),
             ));
         }
         let raw_path = raw_output_path();
@@ -139,22 +144,44 @@ fn media_dir() -> PathBuf {
 fn finalize(raw: &Path, format: RecordFormat) -> Result<PathBuf, RecordError> {
     match format {
         RecordFormat::Mov => Ok(raw.to_path_buf()),
-        RecordFormat::Mp4 => remux_mp4_system(raw),
-        RecordFormat::Gif => Err(RecordError::Message(
-            "gif export is deferred — see docs/TECH_PLAN.md".into(),
-        )),
+        RecordFormat::Mp4 => remux_mp4(raw),
+        RecordFormat::Gif => convert_gif(raw),
     }
 }
 
-/// Prefer macOS `avconvert` (ships with the OS). Never call ffmpeg here.
-fn remux_mp4_system(raw: &Path) -> Result<PathBuf, RecordError> {
+fn remux_mp4(raw: &Path) -> Result<PathBuf, RecordError> {
     let mut mp4 = raw.to_path_buf();
     mp4.set_extension("mp4");
 
+    if ffmpeg::available() {
+        match ffmpeg::remux_mp4(raw, &mp4) {
+            Ok(()) => {
+                let _ = std::fs::remove_file(raw);
+                return Ok(mp4);
+            }
+            Err(e) => {
+                // Fall through to system tools / keep .mov.
+                eprintln!("mira: ffmpeg mp4 failed ({e}); trying system fallback");
+            }
+        }
+    }
+
+    remux_mp4_system(raw, &mp4)
+}
+
+fn convert_gif(raw: &Path) -> Result<PathBuf, RecordError> {
+    let mut gif = raw.to_path_buf();
+    gif.set_extension("gif");
+    ffmpeg::to_gif(raw, &gif).map_err(|e| RecordError::Message(e.to_string()))?;
+    let _ = std::fs::remove_file(raw);
+    Ok(gif)
+}
+
+/// macOS `avconvert` when present; otherwise keep the raw container.
+fn remux_mp4_system(raw: &Path, mp4: &Path) -> Result<PathBuf, RecordError> {
     #[cfg(target_os = "macos")]
     {
         if which("avconvert") {
-            // `avconvert` presets vary by OS version; try a couple of common forms.
             let attempts = [
                 vec![
                     "-s".into(),
@@ -177,12 +204,11 @@ fn remux_mp4_system(raw: &Path) -> Result<PathBuf, RecordError> {
                 let status = Command::new("avconvert").args(&args).status()?;
                 if status.success() && mp4.exists() {
                     let _ = std::fs::remove_file(raw);
-                    return Ok(mp4);
+                    return Ok(mp4.to_path_buf());
                 }
             }
         }
-        // System .mov is already playable; keep it rather than failing the export.
-        return Ok(raw.to_path_buf());
+        Ok(raw.to_path_buf())
     }
 
     #[cfg(not(target_os = "macos"))]
@@ -232,18 +258,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_format_is_mov() {
-        assert_eq!(RecordOptions::default().format, RecordFormat::Mov);
+    fn default_format_is_mp4() {
+        assert_eq!(RecordOptions::default().format, RecordFormat::Mp4);
     }
 
     #[test]
-    fn gif_start_is_rejected() {
+    fn gif_start_requires_ffmpeg_when_missing() {
+        if ffmpeg::available() {
+            // Host already has a side-car / PATH binary; gate is a no-op.
+            return;
+        }
         let err = RecordSession::start(RecordOptions {
             format: RecordFormat::Gif,
             ..Default::default()
         })
         .err()
         .unwrap();
-        assert!(err.to_string().contains("deferred"));
+        assert!(err.to_string().contains("gif needs ffmpeg"));
     }
 }

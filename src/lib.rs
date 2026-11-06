@@ -18,7 +18,7 @@ use export::ExportTarget;
 use nsh_base::theme;
 use nsh_core::prelude::*;
 use parking_lot::Mutex;
-use record::{RecordOptions, RecordSession};
+use record::{RecordFormat, RecordOptions, RecordSession};
 use scroll::ScrollSession;
 use std::sync::Arc;
 
@@ -703,8 +703,13 @@ fn action_row_export(
 
 fn record_blurb() -> impl IntoElement {
     let opts = RecordOptions::default();
+    let ff = if crate::ffmpeg::available() {
+        "ffmpeg ready"
+    } else {
+        "ffmpeg missing (PATH / vendor / MIRA_FFMPEG)"
+    };
     text(format!(
-        "Native record · cursor {} · {} — no ffmpeg (see docs/TECH_PLAN.md)",
+        "Native capture · cursor {} · finalize {} · {ff}",
         if opts.show_cursor { "on" } else { "off" },
         opts.format.as_str()
     ))
@@ -735,7 +740,29 @@ fn action_row_record(
                     Ok(session) => {
                         meta.set(session.raw_path().display().to_string());
                         *recorder.lock() = Some(session);
-                        status.set("recording — stop in the system UI or press Stop".into());
+                        status.set("recording mp4 — stop in the system UI or press Stop".into());
+                    }
+                    Err(e) => status.set(format!("record failed: {e}")),
+                }
+            }
+        }))
+        .child(press_chip("Start GIF", {
+            let status = status.clone();
+            let meta = meta.clone();
+            let recorder = recorder.clone();
+            move || {
+                if recorder.lock().is_some() {
+                    status.set("already recording".into());
+                    return;
+                }
+                match RecordSession::start(RecordOptions {
+                    format: RecordFormat::Gif,
+                    ..Default::default()
+                }) {
+                    Ok(session) => {
+                        meta.set(session.raw_path().display().to_string());
+                        *recorder.lock() = Some(session);
+                        status.set("recording gif — stop when done".into());
                     }
                     Err(e) => status.set(format!("record failed: {e}")),
                 }

@@ -53,7 +53,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 ### Migration steps
 
 1. ~~Drop ffmpeg from the *required* finalize path~~ (done) — system `.mov` / `avconvert` still work without a bundle.
-2. **Add trimmed ffmpeg vendor pipeline** — build or fetch essentials-only binaries per macOS/Windows/Linux × arch; wire `RecordSession` / export GIF through `mira::ffmpeg::command()`.
+2. ~~**Add trimmed ffmpeg vendor pipeline**~~ (done) — `mira::ffmpeg` resolves `MIRA_FFMPEG` → `vendor/ffmpeg/<triple>` → `PATH`; `scripts/fetch-ffmpeg.sh` + README for trimmed builds; `RecordSession` finalize uses ffmpeg for mp4/gif with system fallbacks.
 3. **ScreenCaptureKit (macOS) in-process capture** — feed frames to VideoToolbox *or* pipe to bundled ffmpeg when helpful.
 4. Windows / Linux native capture backends; keep the same ffmpeg side-car for mux/GIF.
 
@@ -111,3 +111,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | Record path: native capture first; initially “do not bundle ffmpeg”; GIF deferred. |
 | 2026-11-06 | OCR roadmap: RapidOCR / PP-OCRv6 small as preferred local model; Vision / tesseract as fallbacks. |
 | 2026-11-06 | **Option B:** allow a **trimmed, bundled ffmpeg** for encode/mux/GIF under a per-platform size budget; capture remains native. GIF back in scope once the bundle exists. |
+| 2026-11-06 | Landed `mira::ffmpeg` resolver + `RecordSession` mp4/gif finalize (ffmpeg → avconvert → keep `.mov`). |

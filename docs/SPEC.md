@@ -46,8 +46,8 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 |---|---|
 | Region record | **P2** (macOS native `screencapture -v -i`; SCK planned) |
 | Show cursor | **P2** (`-k` clicks) |
-| Format | **P2** interim `.mov` / system tools; **target** trimmed bundled ffmpeg → mp4 (TECH_PLAN option B) |
-| GIF | Planned once trimmed ffmpeg is vendored (TECH_PLAN) |
+| Format | **P2** default **mp4** via trimmed/PATH ffmpeg (fallback `avconvert` / `.mov`) |
+| GIF | Supported when ffmpeg is resolved (vendor / `MIRA_FFMPEG` / PATH) |
 | Preview · download · clipboard | Partial (save path; clipboard later) |
 
 ## Hotkeys (P1 defaults)
