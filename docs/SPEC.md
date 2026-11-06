@@ -44,10 +44,10 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 
 | Feature | Status |
 |---|---|
-| Region record | Planned (P2) |
-| Show cursor | Planned (P2) |
-| Format (mp4 / gif) | Planned (P2) |
-| Preview · download · clipboard | Planned (P2) |
+| Region record | **P2** (macOS `screencapture -v -i`) |
+| Show cursor | **P2** (`-k` clicks) |
+| Format (mp4 / gif) | **P2** (ffmpeg remux / gif) |
+| Preview · download · clipboard | Partial (save path; clipboard later) |
 
 ## Hotkeys (P1 defaults)
 

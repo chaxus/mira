@@ -17,7 +17,7 @@ use export::ExportTarget;
 use nsh_base::theme;
 use nsh_core::prelude::*;
 use parking_lot::Mutex;
-use record::RecordOptions;
+use record::{RecordOptions, RecordSession};
 use scroll::ScrollSession;
 use std::sync::Arc;
 
@@ -26,6 +26,7 @@ type DocCell = Arc<Mutex<Option<Document>>>;
 type DragCell = Arc<Mutex<Option<(i32, i32)>>>;
 type PenCell = Arc<Mutex<Vec<(i32, i32)>>>;
 type ScrollCell = Arc<Mutex<Option<ScrollSession>>>;
+type RecordCell = Arc<Mutex<Option<RecordSession>>>;
 
 const PREVIEW_WIDTH: f32 = 380.0;
 
@@ -50,6 +51,7 @@ pub fn App() -> impl IntoElement {
     let drag: DragCell = Arc::new(Mutex::new(None));
     let pen: PenCell = Arc::new(Mutex::new(Vec::new()));
     let scroll: ScrollCell = Arc::new(Mutex::new(None));
+    let recorder: RecordCell = Arc::new(Mutex::new(None));
 
     view()
         .flex_1()
@@ -104,6 +106,7 @@ pub fn App() -> impl IntoElement {
                 .child(action_row_export(&status, &meta, doc.clone()))
                 .child(section_label("Record"))
                 .child(record_blurb())
+                .child(action_row_record(&status, &meta, recorder))
                 .child(status_line(&status))
                 .child(meta_line(&meta)),
         )
@@ -700,12 +703,61 @@ fn action_row_export(
 fn record_blurb() -> impl IntoElement {
     let opts = RecordOptions::default();
     text(format!(
-        "Region record · cursor {} · {} — P2",
+        "Region record · cursor {} · {} — Start then stop via system UI or Stop",
         if opts.show_cursor { "on" } else { "off" },
         opts.format.as_str()
     ))
     .text_size(px(13.0))
     .text_color(move || theme().muted_foreground)
+}
+
+fn action_row_record(
+    status: &Signal<String>,
+    meta: &Signal<String>,
+    recorder: RecordCell,
+) -> impl IntoElement {
+    let status = status.clone();
+    let meta = meta.clone();
+    view()
+        .flex_row()
+        .gap_2()
+        .child(press_chip("Start record", {
+            let status = status.clone();
+            let meta = meta.clone();
+            let recorder = recorder.clone();
+            move || {
+                if recorder.lock().is_some() {
+                    status.set("already recording".into());
+                    return;
+                }
+                match RecordSession::start(RecordOptions::default()) {
+                    Ok(session) => {
+                        meta.set(session.raw_path().display().to_string());
+                        *recorder.lock() = Some(session);
+                        status.set("recording — stop in the system UI or press Stop".into());
+                    }
+                    Err(e) => status.set(format!("record failed: {e}")),
+                }
+            }
+        }))
+        .child(press_chip("Stop record", {
+            let status = status.clone();
+            let meta = meta.clone();
+            move || {
+                let session = recorder.lock().take();
+                let Some(session) = session else {
+                    status.set("not recording".into());
+                    return;
+                };
+                match session.stop() {
+                    Ok(path) => {
+                        meta.set(path.display().to_string());
+                        status.set("recording saved".into());
+                    }
+                    Err(e) => status.set(format!("stop failed: {e}")),
+                }
+            }
+        }))
 }
 
 fn mode_chip(label: &'static str, value: CaptureMode, mode: &Signal<CaptureMode>) -> impl IntoElement {
