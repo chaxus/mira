@@ -117,3 +117,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | OCR: RapidOCR/PP-OCRv6 ONNX optional via `vendor/ocr`; Vision / tesseract remain fallbacks. |
 | 2026-11-06 | macOS region record: SCK content-sharing picker; pin: floating always-on-top window. |
 | 2026-11-06 | macOS fullscreen screenshot: `SCScreenshotManager` via cidre; `screencapture` kept for region + fallback. |
+| 2026-11-06 | macOS SCK fullscreen (shot + record) excludes this process’s windows from the content filter. |

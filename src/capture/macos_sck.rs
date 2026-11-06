@@ -19,8 +19,8 @@ pub fn capture_fullscreen_png(path: &Path) -> Result<(), CaptureError> {
         .get(0)
         .map_err(|_| CaptureError::Message("no displays available".into()))?;
 
-    let windows = ns::Array::new();
-    let filter = sc::ContentFilter::with_display_excluding_windows(&display, &windows);
+    let exclude = self_windows(&content);
+    let filter = sc::ContentFilter::with_display_excluding_windows(&display, &exclude);
 
     let rect = filter.content_rect();
     let scale = f64::from(filter.point_pixel_scale()).max(1.0);
@@ -35,6 +35,26 @@ pub fn capture_fullscreen_png(path: &Path) -> Result<(), CaptureError> {
 
     let image = capture_cg_image(&filter, &cfg)?;
     write_png(&image, path)
+}
+
+/// Windows owned by this process — excluded so Mira chrome stays out of the shot
+/// without relying solely on the System Events hide dance.
+fn self_windows(content: &sc::ShareableContent) -> arc::R<ns::Array<sc::Window>> {
+    let self_pid = std::process::id() as i32;
+    let all = content.windows();
+    let mut ours: Vec<arc::R<sc::Window>> = Vec::new();
+    for i in 0..all.len() {
+        let Ok(win) = all.get(i) else {
+            continue;
+        };
+        if win
+            .owning_app()
+            .is_some_and(|app| app.process_id() == self_pid)
+        {
+            ours.push(win.retained());
+        }
+    }
+    ns::Array::from_slice_retained(&ours)
 }
 
 fn shareable_content() -> Result<arc::R<sc::ShareableContent>, CaptureError> {

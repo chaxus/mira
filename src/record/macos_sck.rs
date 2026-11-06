@@ -180,10 +180,29 @@ fn primary_display_filter() -> Result<arc::R<sc::ContentFilter>, RecordError> {
     let display = displays.get(0).map_err(|_| {
         RecordError::Message("no displays available for ScreenCaptureKit".into())
     })?;
-    let windows = ns::Array::new();
+    let exclude = self_windows(&content);
     Ok(sc::ContentFilter::with_display_excluding_windows(
-        &display, &windows,
+        &display, &exclude,
     ))
+}
+
+/// Drop Mira's own windows from the capture so the panel is not recorded.
+fn self_windows(content: &sc::ShareableContent) -> arc::R<ns::Array<sc::Window>> {
+    let self_pid = std::process::id() as i32;
+    let all = content.windows();
+    let mut ours: Vec<arc::R<sc::Window>> = Vec::new();
+    for i in 0..all.len() {
+        let Ok(win) = all.get(i) else {
+            continue;
+        };
+        if win
+            .owning_app()
+            .is_some_and(|app| app.process_id() == self_pid)
+        {
+            ours.push(win.retained());
+        }
+    }
+    ns::Array::from_slice_retained(&ours)
 }
 
 fn pick_content_filter() -> Result<arc::R<sc::ContentFilter>, RecordError> {
