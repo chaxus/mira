@@ -36,6 +36,7 @@ cidre = { version = "0.29", default-features = false, features = [
     "sc",
     "blocks",
     "macos_15_0",
+    "app", # NSPanel pin-to-screen
 ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

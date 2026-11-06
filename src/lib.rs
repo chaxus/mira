@@ -799,7 +799,7 @@ fn action_row_record(
                     Ok(session) => {
                         meta.set(session.raw_path().display().to_string());
                         *recorder.lock() = Some(session);
-                        status.set("region record (CLI) — select area, then Stop".into());
+                        status.set("region record — pick window/display, then Stop".into());
                     }
                     Err(e) => status.set(format!("record failed: {e}")),
                 }

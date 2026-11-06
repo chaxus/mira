@@ -30,7 +30,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 | Capture | **Native OS APIs** | Permissions, region, cursor, hide-self |
 | Encode / mux / GIF | **Trimmed bundled ffmpeg** (option B) | Per-platform binary under `vendor/ffmpeg/<triple>/` or download-on-build |
 | Fallback encode | System tools when present | e.g. macOS VideoToolbox / `avconvert`; PATH `ffmpeg` |
-| macOS capture | **ScreenCaptureKit** `SCRecordingOutput` (cidre) for fullscreen; `screencapture -i` for interactive region | |
+| macOS capture | **ScreenCaptureKit** `SCRecordingOutput` (cidre); region via system content-sharing picker (CLI fallback) | |
 | Windows capture | **Windows.Graphics.Capture** + Media Foundation (`windows-capture`) | |
 | Linux capture | **wf-recorder** (Wayland) or ffmpeg **x11grab**; PipeWire portal later | |
 | Default container | **mp4** (H.264) via trimmed ffmpeg | `.mov` acceptable interim on macOS |
@@ -86,7 +86,7 @@ Current path: `tesseract` if installed, else macOS Vision via a short Swift help
 - Capture: macOS `screencapture` + Windows snip/`xcap` + Linux tools/`xcap` — see SPEC.
 - Long-term capture: ScreenCaptureKit / Graphics Capture still preferred over shelling out.
 - Annotate: bitmap strokes in-process; interactive preview is P1.1.
-- Pin: macOS Quick Look is a stand-in; true always-on-top `NSPanel` is a later polish item.
+- Pin: macOS floating always-on-top window (Quick Look fallback); other OS open the PNG.
 
 ---
 
@@ -116,3 +116,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | macOS record default: in-process ScreenCaptureKit via `cidre` (`SCRecordingOutput`); region stays on `screencapture -i`. |
 | 2026-11-06 | Windows record: Graphics Capture + MF via `windows-capture`. Linux: `wf-recorder` / ffmpeg `x11grab`. |
 | 2026-11-06 | OCR: RapidOCR/PP-OCRv6 ONNX optional via `vendor/ocr`; Vision / tesseract remain fallbacks. |
+| 2026-11-06 | macOS region record: SCK content-sharing picker; pin: floating always-on-top window. |

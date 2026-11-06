@@ -290,17 +290,20 @@ fn platform_start(
 ) -> Result<(Backend, PathBuf, &'static str), RecordError> {
     #[cfg(target_os = "macos")]
     {
-        if !options.region {
-            let path = macos_sck::raw_path_for(options.format);
-            match macos_sck::SckSession::start(options, &path) {
-                Ok(session) => {
-                    return Ok((Backend::Sck(session), path, "ScreenCaptureKit"));
-                }
-                Err(e) => {
-                    eprintln!(
-                        "mira: ScreenCaptureKit unavailable ({e}); falling back to screencapture"
-                    );
-                }
+        let path = macos_sck::raw_path_for(options.format);
+        match macos_sck::SckSession::start(options, &path) {
+            Ok(session) => {
+                let label = if options.region {
+                    "ScreenCaptureKit picker"
+                } else {
+                    "ScreenCaptureKit"
+                };
+                return Ok((Backend::Sck(session), path, label));
+            }
+            Err(e) => {
+                eprintln!(
+                    "mira: ScreenCaptureKit unavailable ({e}); falling back to screencapture"
+                );
             }
         }
         let path = cli_raw_path();

@@ -1,13 +1,14 @@
 //! In-process ScreenCaptureKit recording via `SCRecordingOutput` (macOS 15+).
 //!
-//! Uses `cidre` ObjC bindings (VideoToolbox-backed file writer). Interactive
-//! region selection still uses the `screencapture` CLI fallback in `super`.
+//! Fullscreen captures the primary display. `region` presents the system
+//! content-sharing picker (window / display). Falls back to CLI in `super`
+//! when the picker is cancelled or unavailable.
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use cidre::{arc, define_obj_type, ns, objc, sc};
+use cidre::{arc, cf, define_obj_type, ns, objc, sc};
 
 use super::{RecordError, RecordFormat, RecordOptions};
 
@@ -22,6 +23,58 @@ impl sc::RecordingOutputDelegate for MiraRecDelegate {}
 #[objc::add_methods]
 impl sc::RecordingOutputDelegateImpl for MiraRecDelegate {}
 
+struct PickerInner {
+    tx: Option<mpsc::Sender<Result<arc::R<sc::ContentFilter>, RecordError>>>,
+}
+
+define_obj_type!(
+    MiraPickerObserver + sc::ContentSharingPickerObserverImpl,
+    PickerInner,
+    MIRA_PICKER_OBSERVER
+);
+
+impl sc::ContentSharingPickerObserver for MiraPickerObserver {}
+
+#[objc::add_methods]
+impl sc::ContentSharingPickerObserverImpl for MiraPickerObserver {
+    extern "C" fn impl_picker_did_cancel_for_stream(
+        &mut self,
+        _cmd: Option<&objc::Sel>,
+        _picker: &mut sc::ContentSharingPicker,
+        _stream: Option<&sc::Stream>,
+    ) {
+        if let Some(tx) = self.inner_mut().tx.take() {
+            let _ = tx.send(Err(RecordError::Message(
+                "content sharing picker cancelled".into(),
+            )));
+        }
+    }
+
+    extern "C" fn impl_picker_did_update_with_filter_for_stream(
+        &mut self,
+        _cmd: Option<&objc::Sel>,
+        _picker: &mut sc::ContentSharingPicker,
+        filter: &sc::ContentFilter,
+        _stream: Option<&sc::Stream>,
+    ) {
+        if let Some(tx) = self.inner_mut().tx.take() {
+            let _ = tx.send(Ok(filter.retained()));
+        }
+    }
+
+    extern "C" fn impl_picker_start_did_fail_with_err(
+        &mut self,
+        _cmd: Option<&objc::Sel>,
+        err: &ns::Error,
+    ) {
+        if let Some(tx) = self.inner_mut().tx.take() {
+            let _ = tx.send(Err(RecordError::Message(format!(
+                "content sharing picker failed: {err}"
+            ))));
+        }
+    }
+}
+
 pub struct SckSession {
     stream: arc::R<sc::Stream>,
     recording: arc::R<sc::RecordingOutput>,
@@ -32,27 +85,34 @@ pub struct SckSession {
 
 impl SckSession {
     pub fn start(options: &RecordOptions, path: &Path) -> Result<Self, RecordError> {
-        let content = shareable_content()?;
-        let displays = content.displays();
-        let display = displays.get(0).map_err(|_| {
-            RecordError::Message("no displays available for ScreenCaptureKit".into())
-        })?;
+        let filter = if options.region {
+            pick_content_filter()?
+        } else {
+            primary_display_filter()?
+        };
+        Self::start_with_filter(filter, options, path)
+    }
 
-        let windows = ns::Array::new();
-        let filter = sc::ContentFilter::with_display_excluding_windows(&display, &windows);
+    fn start_with_filter(
+        filter: arc::R<sc::ContentFilter>,
+        options: &RecordOptions,
+        path: &Path,
+    ) -> Result<Self, RecordError> {
+        let rect = filter.content_rect();
+        let scale = filter.point_pixel_scale().max(1.0) as f64;
+        let width = ((rect.size.width * scale) as usize).max(2);
+        let height = ((rect.size.height * scale) as usize).max(2);
 
         let mut cfg = sc::StreamCfg::new();
-        // Retina: request pixel dimensions (points × 2 is a common default).
-        let width = (display.width() as usize).saturating_mul(2).max(2);
-        let height = (display.height() as usize).saturating_mul(2).max(2);
         cfg.set_width(width);
         cfg.set_height(height);
         cfg.set_shows_cursor(options.show_cursor);
+        // Crop to the selected content bounds when the filter spans a display.
+        cfg.set_src_rect(rect);
 
         let url = ns::Url::with_fs_path_str(&path.to_string_lossy(), false);
         let mut rec_cfg = sc::RecordingOutputCfg::new();
         rec_cfg.set_output_url(&url);
-        // Default codec is H.264 / mp4-friendly; container follows path extension.
 
         let delegate = MiraRecDelegate::new();
         let recording = sc::RecordingOutput::with_cfg(&rec_cfg, delegate.as_ref());
@@ -81,7 +141,6 @@ impl SckSession {
             .remove_recording_output(&self.recording)
             .map_err(|e| RecordError::Message(format!("remove recording output: {e}")))?;
 
-        // Best-effort stop if remove did not already halt capture.
         let _ = wait_err("stopCapture", |tx| {
             self.stream.stop_with_ch(move |err| {
                 let _ = tx.send(err.map(|e| e.to_string()));
@@ -113,6 +172,56 @@ pub fn raw_path_for(format: RecordFormat) -> PathBuf {
     };
     path.push(format!("Mira-{stamp}.{ext}"));
     path
+}
+
+fn primary_display_filter() -> Result<arc::R<sc::ContentFilter>, RecordError> {
+    let content = shareable_content()?;
+    let displays = content.displays();
+    let display = displays.get(0).map_err(|_| {
+        RecordError::Message("no displays available for ScreenCaptureKit".into())
+    })?;
+    let windows = ns::Array::new();
+    Ok(sc::ContentFilter::with_display_excluding_windows(
+        &display, &windows,
+    ))
+}
+
+fn pick_content_filter() -> Result<arc::R<sc::ContentFilter>, RecordError> {
+    let (tx, rx) = mpsc::channel();
+    let observer = MiraPickerObserver::with(PickerInner { tx: Some(tx) });
+
+    let mut cfg = sc::ContentSharingPickerCfg::new();
+    cfg.set_allowed_picker_modes(
+        sc::ContentSharingPickerMode::SINGLE_WINDOW
+            | sc::ContentSharingPickerMode::MULTIPLE_WINDOWS
+            | sc::ContentSharingPickerMode::SINGLE_DISPLAY
+            | sc::ContentSharingPickerMode::SINGLE_APP,
+    );
+    cfg.set_allows_changing_selected_content(false);
+
+    let mut picker = sc::ContentSharingPicker::shared();
+    picker.set_default_cfg(&cfg);
+    picker.add_observer(observer.as_ref());
+    picker.set_active(true);
+    picker.present();
+
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let result = loop {
+        if let Ok(msg) = rx.try_recv() {
+            break msg;
+        }
+        if Instant::now() >= deadline {
+            break Err(RecordError::Message(
+                "timed out waiting for content sharing picker".into(),
+            ));
+        }
+        // Keep AppKit / picker UI responsive while we block for a selection.
+        let _ = cf::RunLoop::run_in_mode(cf::RunLoopMode::default(), 0.05, false);
+    };
+
+    picker.set_active(false);
+    picker.remove_observer(observer.as_ref());
+    result
 }
 
 fn shareable_content() -> Result<arc::R<sc::ShareableContent>, RecordError> {

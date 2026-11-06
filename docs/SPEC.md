@@ -37,14 +37,14 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 |---|---|
 | Copy to clipboard | **P1** |
 | Save to file | **P1** (Pictures/Mira-*.png) |
-| Pin to screen | **P2** (macOS Quick Look panel; other OS open PNG) |
+| Pin to screen | **P2** (macOS floating window; other OS open PNG) |
 | Extract text (OCR) | **P2** RapidOCR/PP-OCRv6 ONNX (optional) → Vision → tesseract |
 
 ### Record
 
 | Feature | Status |
 |---|---|
-| Region record | **P2** macOS CLI / Windows picker / Linux `slurp`; fullscreen via SCK · WGC · wf-recorder/x11grab |
+| Region record | **P2** macOS SCK picker (CLI fallback) / Windows picker / Linux `slurp` |
 | Show cursor | **P2** (`-k` clicks) |
 | Format | **P2** default **mp4** via trimmed/PATH ffmpeg (fallback `avconvert` / `.mov`) |
 | GIF | Supported when ffmpeg is resolved (vendor / `MIRA_FFMPEG` / PATH) |
