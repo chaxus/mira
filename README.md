@@ -16,7 +16,7 @@
 | P2 | Scroll stitch, pin, OCR, watermark, macOS region record |
 | P3 | Tray / polish, packaging, Win/Linux record, richer text/tag tools |
 
-Spec: [`docs/SPEC.md`](docs/SPEC.md)
+Spec: [`docs/SPEC.md`](docs/SPEC.md) · Tech plan: [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md)
 
 ## Hotkeys
 
@@ -32,7 +32,8 @@ macOS needs **Screen Recording** permission (System Settings → Privacy & Secur
 - macOS 14+ / Windows 10 1809+ / Linux (GTK 4.14+)
 - [nsh](https://nsh.dev/docs/installation) 0.4+ — prefer [`chaxus/nsh`](https://github.com/chaxus/nsh)
 - Rust **nightly** (see `rust-toolchain.toml`)
-- Optional: `tesseract`, `ffmpeg`, `grim`+`slurp` / `gnome-screenshot` (Linux region)
+- Optional: `tesseract` (OCR), `grim`+`slurp` / `gnome-screenshot` (Linux region)
+- **Not required:** ffmpeg — recording uses OS-native paths ([`docs/TECH_PLAN.md`](docs/TECH_PLAN.md))
 
 ```sh
 curl -fsSL https://nsh.dev/install.sh | sh

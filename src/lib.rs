@@ -703,7 +703,7 @@ fn action_row_export(
 fn record_blurb() -> impl IntoElement {
     let opts = RecordOptions::default();
     text(format!(
-        "Region record · cursor {} · {} — Start then stop via system UI or Stop",
+        "Native record · cursor {} · {} — no ffmpeg (see docs/TECH_PLAN.md)",
         if opts.show_cursor { "on" } else { "off" },
         opts.format.as_str()
     ))
