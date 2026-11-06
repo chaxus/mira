@@ -37,6 +37,7 @@ cidre = { version = "0.29", default-features = false, features = [
     "blocks",
     "macos_15_0",
     "app", # NSPanel pin-to-screen
+    "iio", # CGImageDestination PNG write for SCK screenshots
 ] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

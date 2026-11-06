@@ -34,7 +34,7 @@ macOS needs **Screen Recording** permission (System Settings → Privacy & Secur
 - Rust **nightly** (see `rust-toolchain.toml`)
 - Optional OCR: `./scripts/fetch-ocr-models.sh` (RapidOCR) or `tesseract`; macOS Vision is a fallback
 - Optional: `grim`+`slurp` / `gnome-screenshot` (Linux region)
-- Recording: macOS **ScreenCaptureKit**, Windows **Graphics Capture**, Linux **wf-recorder** / ffmpeg **x11grab** — see [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md)
+- Capture / record: macOS **ScreenCaptureKit** (screenshot + record), Windows snip / **Graphics Capture**, Linux tools / **wf-recorder** / **x11grab** — see [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md)
 
 ```sh
 curl -fsSL https://nsh.dev/install.sh | sh

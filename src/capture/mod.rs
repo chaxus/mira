@@ -1,10 +1,13 @@
-//! Screen capture — macOS `screencapture`, Windows / Linux `xcap` + desktop tools.
+//! Screen capture — macOS ScreenCaptureKit / `screencapture`, Windows / Linux `xcap` + desktop tools.
 
 use std::path::PathBuf;
 use std::process::Command;
 
 use image::RgbaImage;
 use thiserror::Error;
+
+#[cfg(target_os = "macos")]
+mod macos_sck;
 
 /// How Mira grabs pixels before annotation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -90,6 +93,22 @@ fn temp_png_path() -> Result<PathBuf, CaptureError> {
 
 #[cfg(target_os = "macos")]
 fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), CaptureError> {
+    match mode {
+        CaptureMode::Fullscreen => match macos_sck::capture_fullscreen_png(path) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                eprintln!("mira: SCK fullscreen failed ({err}); falling back to screencapture");
+                macos_screencapture(CaptureMode::Fullscreen, path)
+            }
+        },
+        CaptureMode::Region => macos_screencapture(CaptureMode::Region, path),
+        CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
+    }
+}
+
+/// `screencapture` CLI — used for interactive region and as SCK fullscreen fallback.
+#[cfg(target_os = "macos")]
+fn macos_screencapture(mode: CaptureMode, path: &std::path::Path) -> Result<(), CaptureError> {
     // -x: no sound; -t png; -i: interactive region (Lark-like drag).
     let mut cmd = Command::new("screencapture");
     cmd.arg("-x").arg("-t").arg("png");
@@ -281,4 +300,16 @@ fn finish_tool_status(
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn platform_capture(_mode: CaptureMode, _path: &std::path::Path) -> Result<(), CaptureError> {
     Err(CaptureError::Unsupported("this OS"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mode_labels() {
+        assert_eq!(CaptureMode::Region.as_str(), "region");
+        assert_eq!(CaptureMode::Fullscreen.as_str(), "fullscreen");
+        assert_eq!(CaptureMode::Scroll.as_str(), "scroll");
+    }
 }

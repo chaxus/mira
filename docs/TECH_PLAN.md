@@ -30,7 +30,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 | Capture | **Native OS APIs** | Permissions, region, cursor, hide-self |
 | Encode / mux / GIF | **Trimmed bundled ffmpeg** (option B) | Per-platform binary under `vendor/ffmpeg/<triple>/` or download-on-build |
 | Fallback encode | System tools when present | e.g. macOS VideoToolbox / `avconvert`; PATH `ffmpeg` |
-| macOS capture | **ScreenCaptureKit** `SCRecordingOutput` (cidre); region via system content-sharing picker (CLI fallback) | |
+| macOS capture | **ScreenCaptureKit** (cidre): screenshots via `SCScreenshotManager`, record via `SCRecordingOutput`; region record via content-sharing picker; interactive still via `screencapture -i` | |
 | Windows capture | **Windows.Graphics.Capture** + Media Foundation (`windows-capture`) | |
 | Linux capture | **wf-recorder** (Wayland) or ffmpeg **x11grab**; PipeWire portal later | |
 | Default container | **mp4** (H.264) via trimmed ffmpeg | `.mov` acceptable interim on macOS |
@@ -83,8 +83,7 @@ Current path: `tesseract` if installed, else macOS Vision via a short Swift help
 
 ## Capture / annotate (status pointers)
 
-- Capture: macOS `screencapture` + Windows snip/`xcap` + Linux tools/`xcap` — see SPEC.
-- Long-term capture: ScreenCaptureKit / Graphics Capture still preferred over shelling out.
+- Capture: macOS ScreenCaptureKit fullscreen (+ `screencapture` region / fallback) + Windows snip/`xcap` + Linux tools/`xcap` — see SPEC.
 - Annotate: bitmap strokes in-process; interactive preview is P1.1.
 - Pin: macOS floating always-on-top window (Quick Look fallback); other OS open the PNG.
 
@@ -117,3 +116,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | Windows record: Graphics Capture + MF via `windows-capture`. Linux: `wf-recorder` / ffmpeg `x11grab`. |
 | 2026-11-06 | OCR: RapidOCR/PP-OCRv6 ONNX optional via `vendor/ocr`; Vision / tesseract remain fallbacks. |
 | 2026-11-06 | macOS region record: SCK content-sharing picker; pin: floating always-on-top window. |
+| 2026-11-06 | macOS fullscreen screenshot: `SCScreenshotManager` via cidre; `screencapture` kept for region + fallback. |
