@@ -5,6 +5,7 @@ mod capture;
 mod chrome;
 mod export;
 mod hotkey;
+mod pin;
 mod preview;
 mod record;
 mod scroll;
@@ -628,9 +629,25 @@ fn action_row_export(
                 }
             }
         }))
-        .child(press_chip("Pin (P2)", {
+        .child(press_chip("Pin", {
             let status = status.clone();
-            move || status.set(format!("{} lands in P2", ExportTarget::PinToScreen.as_str()))
+            let meta = meta.clone();
+            let doc = doc.clone();
+            move || {
+                let guard = doc.lock();
+                let Some(document) = guard.as_ref() else {
+                    status.set("capture something first".into());
+                    return;
+                };
+                let img = document.render();
+                match pin::pin_to_screen(&img) {
+                    Ok(path) => {
+                        meta.set(path.display().to_string());
+                        status.set(format!("{} — floating preview", ExportTarget::PinToScreen.as_str()));
+                    }
+                    Err(e) => status.set(format!("pin failed: {e}")),
+                }
+            }
         }))
         .child(press_chip("OCR (P2)", {
             let status = status.clone();

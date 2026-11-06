@@ -36,7 +36,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 |---|---|
 | Copy to clipboard | **P1** |
 | Save to file | **P1** (Pictures/Mira-*.png) |
-| Pin to screen | Planned (P2) |
+| Pin to screen | **P2** (macOS Quick Look panel; other OS open PNG) |
 | Extract text (OCR) | Planned (P2) |
 
 ### Record
