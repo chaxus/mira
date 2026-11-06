@@ -122,3 +122,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | macOS SCK fullscreen shot/record targets the display under the mouse cursor. |
 | 2026-11-06 | Save PNG reveals the file in Finder / Explorer / xdg-open. |
 | 2026-11-06 | Capture “show cursor” toggle (SCK `showsCursor` / `screencapture -C`). |
+| 2026-11-06 | Remappable global hotkeys via panel + `hotkeys.conf` (global-hotkey string parse). |

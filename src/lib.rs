@@ -44,9 +44,15 @@ pub fn App() -> impl IntoElement {
 
     let mode = signal(CaptureMode::Region);
     let show_cursor = signal(capture::options().show_cursor);
+    let hk = hotkey::current_bindings();
+    let region_hk = signal(hk.region.clone());
+    let full_hk = signal(hk.fullscreen.clone());
     let tool = signal(AnnotateTool::Arrow);
     let label = signal(String::from("Note"));
-    let status = signal(String::from("Ready · Ctrl+Shift+A region · Ctrl+Shift+S screen"));
+    let status = signal(format!(
+        "Ready · {} region · {} screen",
+        hk.region, hk.fullscreen
+    ));
     let doc: DocCell = Arc::new(Mutex::new(None));
     let meta = signal(String::from("No capture yet"));
     let preview_uri = signal(String::new());
@@ -85,6 +91,8 @@ pub fn App() -> impl IntoElement {
                     preview_rev.clone(),
                     scroll,
                 ))
+                .child(section_label("Hotkeys"))
+                .child(hotkey_row(&region_hk, &full_hk, &status))
                 .child(section_label("Annotate"))
                 .child(annotate_row(&tool))
                 .child(label_row(&label))
@@ -268,6 +276,90 @@ fn label_row(label: &Signal<String>) -> impl IntoElement {
                 .value(move || label.get())
                 .placeholder("Text / tag content")
                 .on_change(move |value: &str| label.set(value.to_string())),
+        )
+}
+
+fn hotkey_row(
+    region_hk: &Signal<String>,
+    full_hk: &Signal<String>,
+    status: &Signal<String>,
+) -> impl IntoElement {
+    let region_hk = region_hk.clone();
+    let full_hk = full_hk.clone();
+    let status = status.clone();
+    view()
+        .gap_2()
+        .child(
+            view()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(
+                    text("Region")
+                        .text_sm()
+                        .w(px(72.0))
+                        .text_color(move || theme().muted_foreground),
+                )
+                .child(
+                    input()
+                        .flex_1()
+                        .value(move || region_hk.get())
+                        .placeholder("Ctrl+Shift+A")
+                        .on_change(move |value: &str| region_hk.set(value.to_string())),
+                ),
+        )
+        .child(
+            view()
+                .flex_row()
+                .items_center()
+                .gap_2()
+                .child(
+                    text("Screen")
+                        .text_sm()
+                        .w(px(72.0))
+                        .text_color(move || theme().muted_foreground),
+                )
+                .child(
+                    input()
+                        .flex_1()
+                        .value(move || full_hk.get())
+                        .placeholder("Ctrl+Shift+S")
+                        .on_change(move |value: &str| full_hk.set(value.to_string())),
+                ),
+        )
+        .child(
+            view()
+                .flex_row()
+                .gap_2()
+                .child(press_chip("Apply hotkeys", {
+                    let region_hk = region_hk.clone();
+                    let full_hk = full_hk.clone();
+                    let status = status.clone();
+                    move || {
+                        let bindings = hotkey::HotkeyBindings {
+                            region: region_hk.get(),
+                            fullscreen: full_hk.get(),
+                        };
+                        match hotkey::apply_bindings(bindings) {
+                            Ok(()) => status.set(hotkey::last_status()),
+                            Err(e) => status.set(format!("hotkey apply failed: {e}")),
+                        }
+                    }
+                }))
+                .child(press_chip("Reset defaults", {
+                    let region_hk = region_hk.clone();
+                    let full_hk = full_hk.clone();
+                    let status = status.clone();
+                    move || {
+                        let defaults = hotkey::HotkeyBindings::default();
+                        region_hk.set(defaults.region.clone());
+                        full_hk.set(defaults.fullscreen.clone());
+                        match hotkey::apply_bindings(defaults) {
+                            Ok(()) => status.set(hotkey::last_status()),
+                            Err(e) => status.set(format!("hotkey reset failed: {e}")),
+                        }
+                    }
+                })),
         )
 }
 

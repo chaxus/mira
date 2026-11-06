@@ -19,7 +19,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | Include mouse cursor | **P2** (macOS SCK / `screencapture -C`; toggle in Capture row) |
 | Scroll / long capture | **P2** (multi-step fullscreen stitch) |
 | Hide Mira window while capturing | **P1.1** (macOS System Events + SCK exclude-self; Win EnumWindows; Linux xdotool) |
-| Custom global hotkey | Planned (P1.1); defaults ship in P1 |
+| Custom global hotkey | **P2** (panel editor + `~/…/mira/hotkeys.conf`; defaults Ctrl+Shift+A/S) |
 
 ### Annotate
 
@@ -51,12 +51,14 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | GIF | Supported when ffmpeg is resolved (vendor / `MIRA_FFMPEG` / PATH) |
 | Preview · download · clipboard | Partial (save path; clipboard later) |
 
-## Hotkeys (P1 defaults)
+## Hotkeys
 
 | Shortcut | Action |
 |---|---|
-| Ctrl+Shift+A | Region capture → clipboard |
-| Ctrl+Shift+S | Fullscreen capture → clipboard |
+| Ctrl+Shift+A (default) | Region capture → clipboard |
+| Ctrl+Shift+S (default) | Fullscreen capture → clipboard |
+
+Remap in the Hotkeys section (`Ctrl+Shift+A` style). Persisted under macOS `~/Library/Application Support/mira/hotkeys.conf`, elsewhere `~/.config/mira/hotkeys.conf`.
 
 ## Architecture
 

@@ -22,10 +22,10 @@ Spec: [`docs/SPEC.md`](docs/SPEC.md) · Tech plan: [`docs/TECH_PLAN.md`](docs/TE
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+Shift+A` | Region capture → clipboard |
-| `Ctrl+Shift+S` | Fullscreen capture → clipboard |
+| `Ctrl+Shift+A` (default) | Region capture → clipboard |
+| `Ctrl+Shift+S` (default) | Fullscreen capture → clipboard |
 
-macOS needs **Screen Recording** permission (System Settings → Privacy & Security).
+Remap in-app (Hotkeys section). macOS needs **Screen Recording** permission (System Settings → Privacy & Security).
 
 ## Requirements
 
