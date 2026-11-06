@@ -36,7 +36,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | Feature | Status |
 |---|---|
 | Copy to clipboard | **P1** |
-| Save to file | **P1** (Pictures/Mira-*.png) |
+| Save to file | **P1** (Pictures/Mira-*.png; reveal in Finder/Explorer) |
 | Pin to screen | **P2** (macOS floating window; other OS open PNG) |
 | Extract text (OCR) | **P2** RapidOCR/PP-OCRv6 ONNX (optional) → Vision → tesseract |
 

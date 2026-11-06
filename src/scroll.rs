@@ -2,7 +2,7 @@
 
 use image::{RgbaImage, imageops};
 
-use crate::capture::{self, CaptureError, CaptureMode};
+use crate::capture::{CaptureError, CaptureMode};
 use crate::chrome::HideGuard;
 
 /// In-progress scroll capture session.

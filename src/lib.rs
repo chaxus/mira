@@ -691,7 +691,15 @@ fn action_row_export(
                 match export::save_png(&img, &path) {
                     Ok(()) => {
                         meta.set(path.display().to_string());
-                        status.set("saved PNG".into());
+                        let revealed = export::reveal(&path).is_ok();
+                        status.set(if revealed {
+                            format!(
+                                "{} · revealed in file manager",
+                                ExportTarget::File.as_str()
+                            )
+                        } else {
+                            format!("{} · {}", ExportTarget::File.as_str(), path.display())
+                        });
                     }
                     Err(e) => status.set(format!("save failed: {e}")),
                 }

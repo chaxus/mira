@@ -1,6 +1,7 @@
 //! Export: clipboard + save to PNG file.
 
 use std::path::Path;
+use std::process::Command;
 
 use arboard::{Clipboard, ImageData};
 use image::{ImageEncoder, RgbaImage, codecs::png::PngEncoder};
@@ -35,8 +36,8 @@ pub enum ExportError {
     Io(#[from] std::io::Error),
     #[error("encode: {0}")]
     Encode(String),
-    #[error("not supported yet: {0}")]
-    Unsupported(&'static str),
+    #[error("reveal: {0}")]
+    Reveal(String),
 }
 
 /// Copy RGBA image to the system clipboard as PNG pixels (arboard raw RGBA).
@@ -92,6 +93,50 @@ fn dirs_pictures() -> std::path::PathBuf {
     std::env::temp_dir()
 }
 
+/// Show `path` in the OS file manager (Finder / Explorer / file manager).
+pub fn reveal(path: &Path) -> Result<(), ExportError> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("open")
+            .args(["-R"])
+            .arg(path)
+            .status()
+            .map_err(|e| ExportError::Reveal(e.to_string()))?;
+        if !status.success() {
+            return Err(ExportError::Reveal("open -R failed".into()));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("explorer")
+            .arg(format!("/select,{}", path.display()))
+            .status()
+            .map_err(|e| ExportError::Reveal(e.to_string()))?;
+        if !status.success() {
+            return Err(ExportError::Reveal("explorer /select failed".into()));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let dir = path.parent().unwrap_or(path);
+        let status = Command::new("xdg-open")
+            .arg(dir)
+            .status()
+            .map_err(|e| ExportError::Reveal(e.to_string()))?;
+        if !status.success() {
+            return Err(ExportError::Reveal("xdg-open failed".into()));
+        }
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = path;
+        Err(ExportError::Reveal("reveal not supported on this OS".into()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -104,5 +149,11 @@ mod tests {
         let path = dir.path().join("t.png");
         save_png(&img, &path).unwrap();
         assert!(path.metadata().unwrap().len() > 8);
+    }
+
+    #[test]
+    fn export_target_labels() {
+        assert_eq!(ExportTarget::File.as_str(), "file");
+        assert_eq!(ExportTarget::Clipboard.as_str(), "clipboard");
     }
 }

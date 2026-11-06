@@ -120,3 +120,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | macOS SCK fullscreen (shot + record) excludes this process’s windows from the content filter. |
 | 2026-11-06 | Annotate Text / Tag: label field + click-to-place strokes (system font via ab_glyph). |
 | 2026-11-06 | macOS SCK fullscreen shot/record targets the display under the mouse cursor. |
+| 2026-11-06 | Save PNG reveals the file in Finder / Explorer / xdg-open. |
