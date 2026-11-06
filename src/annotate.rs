@@ -78,6 +78,23 @@ pub enum Stroke {
         /// Pixel size of the glyph.
         size: f32,
     },
+    /// Single-line label anchored at `(x, y)` (baseline-ish top-left of glyphs).
+    Text {
+        x: i32,
+        y: i32,
+        text: String,
+        color: [u8; 4],
+        size: f32,
+    },
+    /// Filled pill / badge with contrasting text (Lark-style number/tag).
+    Tag {
+        x: i32,
+        y: i32,
+        text: String,
+        /// Badge fill color; glyph color is derived for contrast.
+        color: [u8; 4],
+        size: f32,
+    },
 }
 
 /// Editable document: base frame + undoable strokes.
@@ -167,6 +184,20 @@ fn apply_stroke(img: &mut RgbaImage, stroke: &Stroke) {
             block,
         } => apply_mosaic(img, *x0, *y0, *x1, *y1, (*block).max(2)),
         Stroke::Watermark { text, color, size } => apply_watermark(img, text, *color, *size),
+        Stroke::Text {
+            x,
+            y,
+            text,
+            color,
+            size,
+        } => apply_label(img, *x, *y, text, *color, *size, false),
+        Stroke::Tag {
+            x,
+            y,
+            text,
+            color,
+            size,
+        } => apply_label(img, *x, *y, text, *color, *size, true),
     }
 }
 
@@ -378,6 +409,111 @@ fn apply_watermark(img: &mut RgbaImage, text: &str, color: [u8; 4], size: f32) {
     }
 }
 
+fn measure_text(font: &FontArc, scale: PxScale, text: &str) -> (f32, f32) {
+    let scaled = font.as_scaled(scale);
+    let width = text
+        .chars()
+        .map(|c| scaled.h_advance(scaled.glyph_id(c)))
+        .sum::<f32>()
+        .max(1.0);
+    let height = scaled.height().max(scale.y);
+    (width, height)
+}
+
+fn apply_label(
+    img: &mut RgbaImage,
+    x: i32,
+    y: i32,
+    text: &str,
+    color: [u8; 4],
+    size: f32,
+    as_tag: bool,
+) {
+    let label = if text.trim().is_empty() {
+        if as_tag { "1" } else { "Text" }
+    } else {
+        text
+    };
+    let size = size.max(12.0);
+    let Some(font) = load_font() else {
+        // No font: mark the anchor so the stroke is still visible.
+        draw_disk(img, x, y, 4, color);
+        return;
+    };
+    let scale = PxScale::from(size);
+    let (tw, th) = measure_text(&font, scale, label);
+    if as_tag {
+        let pad_x = (size * 0.45).round() as i32;
+        let pad_y = (size * 0.28).round() as i32;
+        let bw = tw.round() as i32 + pad_x * 2;
+        let bh = th.round() as i32 + pad_y * 2;
+        fill_round_rect(img, x, y, bw, bh, (bh / 2).max(4), color);
+        let fg = contrasting_ink(color);
+        draw_text(
+            img,
+            &font,
+            scale,
+            (x + pad_x) as f32,
+            (y + pad_y) as f32,
+            label,
+            fg,
+        );
+    } else {
+        draw_text(img, &font, scale, x as f32, y as f32, label, color);
+    }
+}
+
+fn contrasting_ink(bg: [u8; 4]) -> [u8; 4] {
+    // Relative luminance (sRGB approx).
+    let lum = (0.2126 * bg[0] as f32 + 0.7152 * bg[1] as f32 + 0.0722 * bg[2] as f32) / 255.0;
+    if lum > 0.55 {
+        [20, 20, 20, 255]
+    } else {
+        [255, 255, 255, 255]
+    }
+}
+
+fn fill_round_rect(
+    img: &mut RgbaImage,
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+    radius: i32,
+    color: [u8; 4],
+) {
+    if w <= 0 || h <= 0 {
+        return;
+    }
+    let r = radius.min(w / 2).min(h / 2).max(0);
+    for dy in 0..h {
+        for dx in 0..w {
+            let inside = if dx < r && dy < r {
+                let cx = r - dx;
+                let cy = r - dy;
+                cx * cx + cy * cy <= r * r
+            } else if dx >= w - r && dy < r {
+                let cx = dx - (w - r - 1);
+                let cy = r - dy;
+                cx * cx + cy * cy <= r * r
+            } else if dx < r && dy >= h - r {
+                let cx = r - dx;
+                let cy = dy - (h - r - 1);
+                cx * cx + cy * cy <= r * r
+            } else if dx >= w - r && dy >= h - r {
+                let cx = dx - (w - r - 1);
+                let cy = dy - (h - r - 1);
+                cx * cx + cy * cy <= r * r
+            } else {
+                true
+            };
+            if inside {
+                blend(img, x + dx, y + dy, color);
+            }
+        }
+    }
+}
+
 fn draw_text(
     img: &mut RgbaImage,
     font: &FontArc,
@@ -390,7 +526,8 @@ fn draw_text(
     let scaled = font.as_scaled(scale);
     let mut caret = x;
     for ch in text.chars() {
-        let glyph = scaled.scaled_glyph(ch);
+        let mut glyph = scaled.scaled_glyph(ch);
+        glyph.position = ab_glyph::point(caret, y + scaled.ascent());
         let Some(outlined) = scaled.outline_glyph(glyph) else {
             caret += scaled.h_advance(scaled.glyph_id(ch));
             continue;
@@ -401,12 +538,11 @@ fn draw_text(
                 return;
             }
             let px = (bounds.min.x + gx as f32).round() as i32;
-            let py = (y + bounds.min.y + gy as f32).round() as i32;
+            let py = (bounds.min.y + gy as f32).round() as i32;
             let alpha = (color[3] as f32 * cover) as u8;
             blend(img, px, py, [color[0], color[1], color[2], alpha]);
         });
         caret += scaled.h_advance(scaled.glyph_id(ch));
-        let _ = caret;
     }
 }
 
@@ -476,6 +612,31 @@ mod tests {
         let a = img.get_pixel(0, 0).0;
         let b = img.get_pixel(1, 0).0;
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn text_and_tag_change_pixels() {
+        let mut doc = Document::new(blank(120, 60));
+        doc.push(Stroke::Text {
+            x: 8,
+            y: 8,
+            text: "Hi".into(),
+            color: [0, 0, 0, 255],
+            size: 24.0,
+        });
+        doc.push(Stroke::Tag {
+            x: 50,
+            y: 8,
+            text: "2".into(),
+            color: [255, 59, 48, 255],
+            size: 20.0,
+        });
+        let out = doc.render();
+        assert_ne!(
+            out.as_raw(),
+            blank(120, 60).as_raw(),
+            "text/tag should alter at least one pixel"
+        );
     }
 
     #[test]

@@ -27,7 +27,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | Rect / ellipse / arrow / pen | **P1** (bitmap strokes + sample apply) |
 | Mosaic (box) | **P1** |
 | Undo | **P1** |
-| Text / tag | Planned (later) |
+| Text / tag | **P2** (label field + click-to-place; tag is a filled pill) |
 | Watermark | **P2** |
 | Interactive drag-to-draw on preview | **P1.1** |
 

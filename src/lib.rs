@@ -15,7 +15,7 @@ mod scroll;
 use annotate::{AnnotateTool, Document, Stroke};
 use capture::CaptureMode;
 use export::ExportTarget;
-use nsh_base::theme;
+use nsh_base::{input, theme};
 use nsh_core::prelude::*;
 use parking_lot::Mutex;
 use record::{RecordFormat, RecordOptions, RecordSession};
@@ -44,6 +44,7 @@ pub fn App() -> impl IntoElement {
 
     let mode = signal(CaptureMode::Region);
     let tool = signal(AnnotateTool::Arrow);
+    let label = signal(String::from("Note"));
     let status = signal(String::from("Ready · Ctrl+Shift+A region · Ctrl+Shift+S screen"));
     let doc: DocCell = Arc::new(Mutex::new(None));
     let meta = signal(String::from("No capture yet"));
@@ -85,8 +86,10 @@ pub fn App() -> impl IntoElement {
                 ))
                 .child(section_label("Annotate"))
                 .child(annotate_row(&tool))
+                .child(label_row(&label))
                 .child(preview_canvas(
                     &tool,
+                    &label,
                     &status,
                     &meta,
                     doc.clone(),
@@ -97,6 +100,7 @@ pub fn App() -> impl IntoElement {
                 ))
                 .child(action_row_annotate(
                     &tool,
+                    &label,
                     &status,
                     &meta,
                     doc.clone(),
@@ -205,8 +209,30 @@ fn annotate_row(tool: &Signal<AnnotateTool>) -> impl IntoElement {
         .child(tool_chip("Ellipse", AnnotateTool::Ellipse, &tool))
         .child(tool_chip("Arrow", AnnotateTool::Arrow, &tool))
         .child(tool_chip("Pen", AnnotateTool::Pen, &tool))
+        .child(tool_chip("Text", AnnotateTool::Text, &tool))
+        .child(tool_chip("Tag", AnnotateTool::Tag, &tool))
         .child(tool_chip("Mosaic", AnnotateTool::Mosaic, &tool))
         .child(tool_chip("Watermark", AnnotateTool::Watermark, &tool))
+}
+
+fn label_row(label: &Signal<String>) -> impl IntoElement {
+    let label = label.clone();
+    view()
+        .flex_row()
+        .items_center()
+        .gap_2()
+        .child(
+            text("Label")
+                .text_sm()
+                .text_color(move || theme().muted_foreground),
+        )
+        .child(
+            input()
+                .flex_1()
+                .value(move || label.get())
+                .placeholder("Text / tag content")
+                .on_change(move |value: &str| label.set(value.to_string())),
+        )
 }
 
 fn action_row_capture(
@@ -318,6 +344,7 @@ fn action_row_scroll(
 
 fn preview_canvas(
     tool: &Signal<AnnotateTool>,
+    label: &Signal<String>,
     status: &Signal<String>,
     meta: &Signal<String>,
     doc: DocCell,
@@ -327,6 +354,7 @@ fn preview_canvas(
     pen: PenCell,
 ) -> impl IntoElement {
     let tool = tool.clone();
+    let label = label.clone();
     let status = status.clone();
     let meta = meta.clone();
     let drag_down = drag.clone();
@@ -395,6 +423,7 @@ fn preview_canvas(
                 })
                 .on_press_up({
                     let tool = tool.clone();
+                    let label = label.clone();
                     let status = status.clone();
                     let meta = meta.clone();
                     let doc = doc.clone();
@@ -468,10 +497,20 @@ fn preview_canvas(
                                 color: [0, 0, 0, 70],
                                 size: 28.0,
                             },
-                            AnnotateTool::Text | AnnotateTool::Tag => {
-                                status.set(format!("{} lands later", tool.get().as_str()));
-                                return;
-                            }
+                            AnnotateTool::Text => Stroke::Text {
+                                x: x0.min(x1),
+                                y: y0.min(y1),
+                                text: label.get(),
+                                color,
+                                size: 28.0,
+                            },
+                            AnnotateTool::Tag => Stroke::Tag {
+                                x: x0.min(x1),
+                                y: y0.min(y1),
+                                text: label.get(),
+                                color,
+                                size: 22.0,
+                            },
                         };
                         document.push(stroke);
                         status.set(format!("drew {}", tool.get().as_str()));
@@ -484,6 +523,7 @@ fn preview_canvas(
 
 fn action_row_annotate(
     tool: &Signal<AnnotateTool>,
+    label: &Signal<String>,
     status: &Signal<String>,
     meta: &Signal<String>,
     doc: DocCell,
@@ -491,6 +531,7 @@ fn action_row_annotate(
     preview_rev: Signal<u64>,
 ) -> impl IntoElement {
     let tool = tool.clone();
+    let label = label.clone();
     let status = status.clone();
     let meta = meta.clone();
     view()
@@ -498,6 +539,7 @@ fn action_row_annotate(
         .gap_2()
         .child(press_chip("Apply sample stroke", {
             let tool = tool.clone();
+            let label = label.clone();
             let status = status.clone();
             let meta = meta.clone();
             let doc = doc.clone();
@@ -560,10 +602,20 @@ fn action_row_annotate(
                         color: [0, 0, 0, 70],
                         size: 28.0,
                     },
-                    AnnotateTool::Text | AnnotateTool::Tag => {
-                        status.set(format!("{} lands later", tool.get().as_str()));
-                        return;
-                    }
+                    AnnotateTool::Text => Stroke::Text {
+                        x: w / 5,
+                        y: h / 5,
+                        text: label.get(),
+                        color,
+                        size: 28.0,
+                    },
+                    AnnotateTool::Tag => Stroke::Tag {
+                        x: w / 5,
+                        y: h / 5,
+                        text: label.get(),
+                        color,
+                        size: 22.0,
+                    },
                 };
                 document.push(stroke);
                 status.set(format!("applied {}", tool.get().as_str()));
