@@ -18,7 +18,7 @@ fn main() -> impl std::process::Termination {
             title: "Mira".to_owned(),
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             app_id: "com.chaxus.mira".to_owned(),
-            size: (420, 560),
+            size: (440, 720),
             ..Default::default()
         },
     )

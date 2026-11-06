@@ -28,7 +28,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | Mosaic (box) | **P1** |
 | Undo | **P1** |
 | Text / tag / watermark | Planned (P2) |
-| Interactive drag-to-draw on preview | Planned (P1.1) |
+| Interactive drag-to-draw on preview | **P1.1** |
 
 ### Export
 

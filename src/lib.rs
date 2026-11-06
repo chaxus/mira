@@ -5,6 +5,7 @@ mod capture;
 mod chrome;
 mod export;
 mod hotkey;
+mod preview;
 mod record;
 
 use annotate::{AnnotateTool, Document, Stroke};
@@ -18,6 +19,10 @@ use std::sync::Arc;
 
 /// Shared editing document for the panel (UI thread + capture actions).
 type DocCell = Arc<Mutex<Option<Document>>>;
+type DragCell = Arc<Mutex<Option<(i32, i32)>>>;
+type PenCell = Arc<Mutex<Vec<(i32, i32)>>>;
+
+const PREVIEW_WIDTH: f32 = 380.0;
 
 /// What a future TSX entry may import from `mira/native`.
 #[native_module("mira/native")]
@@ -35,6 +40,10 @@ pub fn App() -> impl IntoElement {
     let status = signal(String::from("Ready · Ctrl+Shift+A region · Ctrl+Shift+S screen"));
     let doc: DocCell = Arc::new(Mutex::new(None));
     let meta = signal(String::from("No capture yet"));
+    let preview_uri = signal(String::new());
+    let preview_rev = signal(0u64);
+    let drag: DragCell = Arc::new(Mutex::new(None));
+    let pen: PenCell = Arc::new(Mutex::new(Vec::new()));
 
     view()
         .flex_1()
@@ -48,10 +57,34 @@ pub fn App() -> impl IntoElement {
                 .child(title())
                 .child(section_label("Capture"))
                 .child(capture_row(&mode))
-                .child(action_row_capture(&mode, &status, &meta, doc.clone()))
+                .child(action_row_capture(
+                    &mode,
+                    &status,
+                    &meta,
+                    doc.clone(),
+                    preview_uri.clone(),
+                    preview_rev.clone(),
+                ))
                 .child(section_label("Annotate"))
                 .child(annotate_row(&tool))
-                .child(action_row_annotate(&tool, &status, &meta, doc.clone()))
+                .child(preview_canvas(
+                    &tool,
+                    &status,
+                    &meta,
+                    doc.clone(),
+                    preview_uri.clone(),
+                    preview_rev.clone(),
+                    drag,
+                    pen,
+                ))
+                .child(action_row_annotate(
+                    &tool,
+                    &status,
+                    &meta,
+                    doc.clone(),
+                    preview_uri.clone(),
+                    preview_rev.clone(),
+                ))
                 .child(section_label("Export"))
                 .child(action_row_export(&status, &meta, doc.clone()))
                 .child(section_label("Record"))
@@ -59,6 +92,33 @@ pub fn App() -> impl IntoElement {
                 .child(status_line(&status))
                 .child(meta_line(&meta)),
         )
+}
+
+fn sync_preview(
+    doc: &DocCell,
+    preview_uri: &Signal<String>,
+    preview_rev: &Signal<u64>,
+    meta: &Signal<String>,
+) {
+    let guard = doc.lock();
+    let Some(document) = guard.as_ref() else {
+        preview_uri.set(String::new());
+        return;
+    };
+    let rev = preview_rev.get() + 1;
+    match preview::refresh(document, rev) {
+        Ok(uri) => {
+            preview_rev.set(rev);
+            preview_uri.set(uri);
+            meta.set(format!(
+                "{}×{} · {} strokes · drag on preview to draw",
+                document.width(),
+                document.height(),
+                document.strokes.len()
+            ));
+        }
+        Err(e) => meta.set(format!("preview failed: {e}")),
+    }
 }
 
 fn title() -> impl IntoElement {
@@ -134,6 +194,8 @@ fn action_row_capture(
     status: &Signal<String>,
     meta: &Signal<String>,
     doc: DocCell,
+    preview_uri: Signal<String>,
+    preview_rev: Signal<u64>,
 ) -> impl IntoElement {
     let mode = mode.clone();
     let status = status.clone();
@@ -143,18 +205,15 @@ fn action_row_capture(
         .gap_2()
         .child(
             press_chip("Capture now", move || {
-                // Pull hotkey status if any.
                 let hk = hotkey::last_status();
                 if !hk.is_empty() {
                     status.set(hk);
                 }
                 match capture::capture(mode.get()) {
                     Ok(img) => {
-                        let w = img.width();
-                        let h = img.height();
                         *doc.lock() = Some(Document::new(img));
-                        meta.set(format!("{w}×{h} px"));
-                        status.set("captured — annotate or export".into());
+                        status.set("captured — drag on preview to annotate".into());
+                        sync_preview(&doc, &preview_uri, &preview_rev, &meta);
                     }
                     Err(capture::CaptureError::Cancelled) => {
                         status.set("capture cancelled".into());
@@ -171,11 +230,174 @@ fn action_row_capture(
         )
 }
 
+fn preview_canvas(
+    tool: &Signal<AnnotateTool>,
+    status: &Signal<String>,
+    meta: &Signal<String>,
+    doc: DocCell,
+    preview_uri: Signal<String>,
+    preview_rev: Signal<u64>,
+    drag: DragCell,
+    pen: PenCell,
+) -> impl IntoElement {
+    let tool = tool.clone();
+    let status = status.clone();
+    let meta = meta.clone();
+    let drag_down = drag.clone();
+    let pen_down = pen.clone();
+    let doc_down = doc.clone();
+    let tool_down = tool.clone();
+
+    view()
+        .w(px(PREVIEW_WIDTH))
+        .min_h(px(120.0))
+        .rounded_md()
+        .bg(move || theme().muted)
+        .child(
+            text(move || {
+                if preview_uri.get().is_empty() {
+                    "Capture to show preview — then drag to draw".into()
+                } else {
+                    String::new()
+                }
+            })
+            .text_size(px(12.0))
+            .text_color(move || theme().muted_foreground),
+        )
+        .child(
+            image(move || preview_uri.get())
+                .w(px(PREVIEW_WIDTH))
+                .object_fit(ResizeMode::Contain)
+                .on_press_down(move |e: &PressEvent| {
+                    let guard = doc_down.lock();
+                    let Some(document) = guard.as_ref() else {
+                        return;
+                    };
+                    let (x, y) = preview::map_point(
+                        e.position.x.0,
+                        e.position.y.0,
+                        PREVIEW_WIDTH,
+                        document.width(),
+                        document.height(),
+                    );
+                    *drag_down.lock() = Some((x, y));
+                    if tool_down.get() == AnnotateTool::Pen {
+                        *pen_down.lock() = vec![(x, y)];
+                    }
+                })
+                .on_mouse_move({
+                    let tool = tool.clone();
+                    let pen = pen.clone();
+                    let doc = doc.clone();
+                    move |e: &MouseEvent| {
+                        if tool.get() != AnnotateTool::Pen || e.pressed_button.is_none() {
+                            return;
+                        }
+                        let guard = doc.lock();
+                        let Some(document) = guard.as_ref() else {
+                            return;
+                        };
+                        let (x, y) = preview::map_point(
+                            e.position.x.0,
+                            e.position.y.0,
+                            PREVIEW_WIDTH,
+                            document.width(),
+                            document.height(),
+                        );
+                        pen.lock().push((x, y));
+                    }
+                })
+                .on_press_up({
+                    let tool = tool.clone();
+                    let status = status.clone();
+                    let meta = meta.clone();
+                    let doc = doc.clone();
+                    let preview_uri = preview_uri.clone();
+                    let preview_rev = preview_rev.clone();
+                    let drag = drag.clone();
+                    let pen = pen.clone();
+                    move |e: &PressEvent| {
+                        let origin = drag.lock().take();
+                        let Some((x0, y0)) = origin else {
+                            return;
+                        };
+                        let mut guard = doc.lock();
+                        let Some(document) = guard.as_mut() else {
+                            return;
+                        };
+                        let (x1, y1) = preview::map_point(
+                            e.position.x.0,
+                            e.position.y.0,
+                            PREVIEW_WIDTH,
+                            document.width(),
+                            document.height(),
+                        );
+                        let color = [255, 59, 48, 255];
+                        let thickness = 3;
+                        let stroke = match tool.get() {
+                            AnnotateTool::Rect => Stroke::Rect {
+                                x0,
+                                y0,
+                                x1,
+                                y1,
+                                color,
+                                thickness,
+                            },
+                            AnnotateTool::Ellipse => Stroke::Ellipse {
+                                x0,
+                                y0,
+                                x1,
+                                y1,
+                                color,
+                                thickness,
+                            },
+                            AnnotateTool::Arrow => Stroke::Arrow {
+                                x0,
+                                y0,
+                                x1,
+                                y1,
+                                color,
+                                thickness,
+                            },
+                            AnnotateTool::Mosaic => Stroke::Mosaic {
+                                x0,
+                                y0,
+                                x1,
+                                y1,
+                                block: 12,
+                            },
+                            AnnotateTool::Pen => {
+                                let mut points = std::mem::take(&mut *pen.lock());
+                                if points.len() < 2 {
+                                    points.push((x1, y1));
+                                }
+                                Stroke::Pen {
+                                    points,
+                                    color,
+                                    thickness,
+                                }
+                            }
+                            AnnotateTool::Text | AnnotateTool::Tag | AnnotateTool::Watermark => {
+                                status.set(format!("{} lands in P2", tool.get().as_str()));
+                                return;
+                            }
+                        };
+                        document.push(stroke);
+                        status.set(format!("drew {}", tool.get().as_str()));
+                        drop(guard);
+                        sync_preview(&doc, &preview_uri, &preview_rev, &meta);
+                    }
+                }),
+        )
+}
+
 fn action_row_annotate(
     tool: &Signal<AnnotateTool>,
     status: &Signal<String>,
     meta: &Signal<String>,
     doc: DocCell,
+    preview_uri: Signal<String>,
+    preview_rev: Signal<u64>,
 ) -> impl IntoElement {
     let tool = tool.clone();
     let status = status.clone();
@@ -188,6 +410,8 @@ fn action_row_annotate(
             let status = status.clone();
             let meta = meta.clone();
             let doc = doc.clone();
+            let preview_uri = preview_uri.clone();
+            let preview_rev = preview_rev.clone();
             move || {
                 let mut guard = doc.lock();
                 let Some(document) = guard.as_mut() else {
@@ -246,18 +470,16 @@ fn action_row_annotate(
                     }
                 };
                 document.push(stroke);
-                meta.set(format!(
-                    "{}×{} · {} strokes",
-                    document.width(),
-                    document.height(),
-                    document.strokes.len()
-                ));
                 status.set(format!("applied {}", tool.get().as_str()));
+                drop(guard);
+                sync_preview(&doc, &preview_uri, &preview_rev, &meta);
             }
         }))
         .child(press_chip("Undo", {
             let status = status.clone();
             let meta = meta.clone();
+            let preview_uri = preview_uri.clone();
+            let preview_rev = preview_rev.clone();
             move || {
                 let mut guard = doc.lock();
                 let Some(document) = guard.as_mut() else {
@@ -265,13 +487,9 @@ fn action_row_annotate(
                     return;
                 };
                 if document.undo() {
-                    meta.set(format!(
-                        "{}×{} · {} strokes",
-                        document.width(),
-                        document.height(),
-                        document.strokes.len()
-                    ));
                     status.set("undone".into());
+                    drop(guard);
+                    sync_preview(&doc, &preview_uri, &preview_rev, &meta);
                 } else {
                     status.set("undo stack empty".into());
                 }
