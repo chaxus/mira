@@ -1,4 +1,4 @@
-//! Screen capture — macOS `screencapture`, Windows `xcap` / snipping tool.
+//! Screen capture — macOS `screencapture`, Windows / Linux `xcap` + desktop tools.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -164,10 +164,106 @@ fn windows_region(path: &std::path::Path) -> Result<(), CaptureError> {
 
 #[cfg(target_os = "linux")]
 fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), CaptureError> {
-    let _ = (mode, path);
-    Err(CaptureError::Unsupported(
-        "linux capture lands in P1.1 — use macOS for now",
+    match mode {
+        CaptureMode::Fullscreen => linux_fullscreen(path),
+        CaptureMode::Region => linux_region(path),
+        CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_fullscreen(path: &std::path::Path) -> Result<(), CaptureError> {
+    use xcap::Monitor;
+
+    let monitor = Monitor::from_point(0, 0).map_err(|e| CaptureError::Message(e.to_string()))?;
+    let image = monitor
+        .capture_image()
+        .map_err(|e| CaptureError::Message(e.to_string()))?;
+    image
+        .save(path)
+        .map_err(|e| CaptureError::Image(e.to_string()))?;
+    Ok(())
+}
+
+/// Prefer Wayland `grim`+`slurp`, then GNOME / KDE / ImageMagick helpers.
+#[cfg(target_os = "linux")]
+fn linux_region(path: &std::path::Path) -> Result<(), CaptureError> {
+    let path_str = path.to_string_lossy().into_owned();
+
+    // grim -g "$(slurp)" out.png
+    if which("slurp") && which("grim") {
+        let geom = Command::new("slurp")
+            .output()
+            .map_err(|e| CaptureError::Message(e.to_string()))?;
+        if !geom.status.success() {
+            return Err(CaptureError::Cancelled);
+        }
+        let geometry = String::from_utf8_lossy(&geom.stdout).trim().to_owned();
+        if geometry.is_empty() {
+            return Err(CaptureError::Cancelled);
+        }
+        let status = Command::new("grim")
+            .args(["-g", &geometry, &path_str])
+            .status()?;
+        return finish_tool_status(status, path);
+    }
+
+    if which("gnome-screenshot") {
+        let status = Command::new("gnome-screenshot")
+            .args(["-a", "-f", &path_str])
+            .status()?;
+        return finish_tool_status(status, path);
+    }
+
+    if which("spectacle") {
+        let status = Command::new("spectacle")
+            .args(["-b", "-r", "-o", &path_str])
+            .status()?;
+        return finish_tool_status(status, path);
+    }
+
+    if which("maim") && which("slop") {
+        let status = Command::new("bash")
+            .args([
+                "-lc",
+                &format!("maim -s {}", shell_escape(&path_str)),
+            ])
+            .status()?;
+        return finish_tool_status(status, path);
+    }
+
+    Err(CaptureError::Message(
+        "no region capture tool found (install grim+slurp, gnome-screenshot, spectacle, or maim)"
+            .into(),
     ))
+}
+
+#[cfg(target_os = "linux")]
+fn which(bin: &str) -> bool {
+    Command::new("sh")
+        .args(["-c", &format!("command -v {bin} >/dev/null 2>&1")])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\"'\"'"))
+}
+
+#[cfg(target_os = "linux")]
+fn finish_tool_status(
+    status: std::process::ExitStatus,
+    path: &std::path::Path,
+) -> Result<(), CaptureError> {
+    if path.exists() {
+        return Ok(());
+    }
+    if status.success() {
+        return Err(CaptureError::Message("capture tool reported success but wrote no file".into()));
+    }
+    Err(CaptureError::Cancelled)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]

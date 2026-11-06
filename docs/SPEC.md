@@ -14,8 +14,8 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 
 | Feature | Status |
 |---|---|
-| Region select | **P1** macOS `screencapture -i`; **P1.1** Windows snipping overlay |
-| Fullscreen | **P1** macOS `screencapture`; **P1.1** Windows `xcap` |
+| Region select | **P1** macOS `screencapture -i`; **P1.1** Windows snipping / Linux grim·GNOME·KDE |
+| Fullscreen | **P1** macOS `screencapture`; **P1.1** Windows / Linux `xcap` |
 | Scroll / long capture | Planned (P2) |
 | Hide Mira window while capturing | Planned (P1.1) |
 | Custom global hotkey | Planned (P1.1); defaults ship in P1 |
