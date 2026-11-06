@@ -709,7 +709,7 @@ fn record_blurb() -> impl IntoElement {
         "ffmpeg missing (PATH / vendor / MIRA_FFMPEG)"
     };
     text(format!(
-        "Native capture · cursor {} · finalize {} · {ff}",
+        "SCK fullscreen · cursor {} · {} · {ff} · region via CLI fallback",
         if opts.show_cursor { "on" } else { "off" },
         opts.format.as_str()
     ))
@@ -738,9 +738,14 @@ fn action_row_record(
                 }
                 match RecordSession::start(RecordOptions::default()) {
                     Ok(session) => {
+                        let backend = if session.is_sck() {
+                            "ScreenCaptureKit"
+                        } else {
+                            "screencapture CLI"
+                        };
                         meta.set(session.raw_path().display().to_string());
                         *recorder.lock() = Some(session);
-                        status.set("recording mp4 — stop in the system UI or press Stop".into());
+                        status.set(format!("recording mp4 via {backend} — press Stop"));
                     }
                     Err(e) => status.set(format!("record failed: {e}")),
                 }
@@ -763,6 +768,28 @@ fn action_row_record(
                         meta.set(session.raw_path().display().to_string());
                         *recorder.lock() = Some(session);
                         status.set("recording gif — stop when done".into());
+                    }
+                    Err(e) => status.set(format!("record failed: {e}")),
+                }
+            }
+        }))
+        .child(press_chip("Start region", {
+            let status = status.clone();
+            let meta = meta.clone();
+            let recorder = recorder.clone();
+            move || {
+                if recorder.lock().is_some() {
+                    status.set("already recording".into());
+                    return;
+                }
+                match RecordSession::start(RecordOptions {
+                    region: true,
+                    ..Default::default()
+                }) {
+                    Ok(session) => {
+                        meta.set(session.raw_path().display().to_string());
+                        *recorder.lock() = Some(session);
+                        status.set("region record (CLI) — select area, then Stop".into());
                     }
                     Err(e) => status.set(format!("record failed: {e}")),
                 }

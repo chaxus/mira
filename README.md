@@ -33,7 +33,7 @@ macOS needs **Screen Recording** permission (System Settings → Privacy & Secur
 - [nsh](https://nsh.dev/docs/installation) 0.4+ — prefer [`chaxus/nsh`](https://github.com/chaxus/nsh)
 - Rust **nightly** (see `rust-toolchain.toml`)
 - Optional: `tesseract` (OCR), `grim`+`slurp` / `gnome-screenshot` (Linux region)
-- Recording: OS-native **capture**; encode/mux via trimmed ffmpeg (`scripts/fetch-ffmpeg.sh` or PATH) — see [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md) / [`vendor/ffmpeg/README.md`](vendor/ffmpeg/README.md)
+- Recording: macOS **ScreenCaptureKit** fullscreen (region via system UI); encode/mux via trimmed ffmpeg — see [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md)
 
 ```sh
 curl -fsSL https://nsh.dev/install.sh | sh

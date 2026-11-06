@@ -30,7 +30,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 | Capture | **Native OS APIs** | Permissions, region, cursor, hide-self |
 | Encode / mux / GIF | **Trimmed bundled ffmpeg** (option B) | Per-platform binary under `vendor/ffmpeg/<triple>/` or download-on-build |
 | Fallback encode | System tools when present | e.g. macOS VideoToolbox / `avconvert`; PATH `ffmpeg` |
-| macOS capture (near-term) | `screencapture` / next: ScreenCaptureKit | |
+| macOS capture | **ScreenCaptureKit** `SCRecordingOutput` (cidre) for fullscreen; `screencapture -i` for interactive region | |
 | Windows / Linux capture | Graphics Capture / PipeWire (planned) | |
 | Default container | **mp4** (H.264) via trimmed ffmpeg | `.mov` acceptable interim on macOS |
 | GIF | **In scope** once bundled ffmpeg ships | Was deferred when ffmpeg was banned |
@@ -54,7 +54,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 
 1. ~~Drop ffmpeg from the *required* finalize path~~ (done) — system `.mov` / `avconvert` still work without a bundle.
 2. ~~**Add trimmed ffmpeg vendor pipeline**~~ (done) — `mira::ffmpeg` resolves `MIRA_FFMPEG` → `vendor/ffmpeg/<triple>` → `PATH`; `scripts/fetch-ffmpeg.sh` + README for trimmed builds; `RecordSession` finalize uses ffmpeg for mp4/gif with system fallbacks.
-3. **ScreenCaptureKit (macOS) in-process capture** — feed frames to VideoToolbox *or* pipe to bundled ffmpeg when helpful.
+3. ~~**ScreenCaptureKit (macOS) in-process capture**~~ (done) — `cidre` + `SCRecordingOutput` (H.264) for fullscreen; CLI fallback on failure / interactive region.
 4. Windows / Linux native capture backends; keep the same ffmpeg side-car for mux/GIF.
 
 ---
@@ -112,3 +112,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | OCR roadmap: RapidOCR / PP-OCRv6 small as preferred local model; Vision / tesseract as fallbacks. |
 | 2026-11-06 | **Option B:** allow a **trimmed, bundled ffmpeg** for encode/mux/GIF under a per-platform size budget; capture remains native. GIF back in scope once the bundle exists. |
 | 2026-11-06 | Landed `mira::ffmpeg` resolver + `RecordSession` mp4/gif finalize (ffmpeg → avconvert → keep `.mov`). |
+| 2026-11-06 | macOS record default: in-process ScreenCaptureKit via `cidre` (`SCRecordingOutput`); region stays on `screencapture -i`. |
