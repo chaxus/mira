@@ -6,15 +6,15 @@
 
 ## Status
 
-**P1 (current):** macOS region / fullscreen capture, core annotate strokes, clipboard + PNG save, global hotkeys.
+**P2 (current):** desktop capture on three OSes, hide-self, interactive annotate, scroll stitch, pin, OCR, watermark, macOS region record.
 
 | Phase | Deliverable |
 |---|---|
 | P0 | Shell UI, domain types, Apache-2.0 public repo |
-| P1 | Hotkeys, region/fullscreen (macOS), rect/ellipse/arrow/pen/mosaic, clipboard / file |
-| P1.1 | Windows / Linux capture, hide-self, interactive draw on preview |
-| P2 | Scroll capture, pin, OCR, watermark, region record |
-| P3 | Tray / polish, packaging, optional mobile via NSH |
+| P1 | Hotkeys, region/fullscreen (macOS), core annotate, clipboard / file |
+| P1.1 | Windows / Linux capture, hide Mira while capturing, drag-to-draw preview |
+| P2 | Scroll stitch, pin, OCR, watermark, macOS region record |
+| P3 | Tray / polish, packaging, Win/Linux record, richer text/tag tools |
 
 Spec: [`docs/SPEC.md`](docs/SPEC.md)
 
@@ -25,19 +25,18 @@ Spec: [`docs/SPEC.md`](docs/SPEC.md)
 | `Ctrl+Shift+A` | Region capture → clipboard |
 | `Ctrl+Shift+S` | Fullscreen capture → clipboard |
 
-macOS needs **Screen Recording** permission for `screencapture` (System Settings → Privacy & Security).
+macOS needs **Screen Recording** permission (System Settings → Privacy & Security).
 
 ## Requirements
 
-- macOS 14+ / Windows 10 1809+ / Linux (GTK 4.14+) — **capture works on macOS in P1**
-- [nsh](https://nsh.dev/docs/installation) 0.4+ — prefer building against [`chaxus/nsh`](https://github.com/chaxus/nsh)
+- macOS 14+ / Windows 10 1809+ / Linux (GTK 4.14+)
+- [nsh](https://nsh.dev/docs/installation) 0.4+ — prefer [`chaxus/nsh`](https://github.com/chaxus/nsh)
 - Rust **nightly** (see `rust-toolchain.toml`)
+- Optional: `tesseract`, `ffmpeg`, `grim`+`slurp` / `gnome-screenshot` (Linux region)
 
 ```sh
 curl -fsSL https://nsh.dev/install.sh | sh
 ```
-
-To compile against the fork instead of crates.io, uncomment the `[patch.crates-io]` block in `Cargo.toml`.
 
 ## Run
 
