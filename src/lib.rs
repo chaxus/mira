@@ -4,6 +4,7 @@ mod annotate;
 mod capture;
 mod chrome;
 mod export;
+mod ffmpeg;
 mod hotkey;
 mod ocr;
 mod pin;

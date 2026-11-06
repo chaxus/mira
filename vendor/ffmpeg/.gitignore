@@ -1,0 +1,5 @@
+# Never commit multi‑MB side-cars; keep README + .gitkeep layout.
+**/ffmpeg
+**/ffmpeg.exe
+**/ffprobe
+**/ffprobe.exe
