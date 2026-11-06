@@ -1,0 +1,25 @@
+# Secrets & local config
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Dependencies & build
+node_modules/
+.target/
+dist/
+build/
+.nsh/
+*.app
+target/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs
+*.log

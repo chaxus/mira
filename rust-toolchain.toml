@@ -1,0 +1,4 @@
+# nsh-core 0.4 uses nightly-only features.
+[toolchain]
+channel = "nightly"
+components = ["rustfmt", "clippy"]
