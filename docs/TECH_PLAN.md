@@ -75,9 +75,9 @@ Current path: `tesseract` if installed, else macOS Vision via a short Swift help
 
 ### OCR migration steps
 
-1. Keep Vision / tesseract working.
-2. Add optional RapidOCR ONNX side-car or embed PP-OCRv6 mobile weights under Apache-2.0.
-3. Default order: RapidOCR (if assets present) → Vision (macOS) → tesseract → error with install hint.
+1. ~~Keep Vision / tesseract working~~ (done).
+2. ~~Add optional RapidOCR ONNX~~ (done) — `rapidocr-core` + `vendor/ocr` / `MIRA_OCR_MODELS`; fetch via `scripts/fetch-ocr-models.sh` (default `ppocrv6-small`).
+3. ~~Default order~~ (done): RapidOCR (if assets present) → Vision (macOS) → tesseract → error with fetch/install hint.
 
 ---
 
@@ -99,7 +99,7 @@ Current path: `tesseract` if installed, else macOS Vision via a short Swift help
 | **Trimmed ffmpeg** (per platform) | **Yes (option B)** — size-budgeted, documented |
 | Full/untrimmed ffmpeg | **No** |
 | tesseract | **No** (optional) |
-| ONNX Runtime + PP-OCR weights (if OCR ships embedded) | Optional product decision (~tens of MB if yes; document clearly) |
+| ONNX Runtime + PP-OCR weights | **Optional** via `scripts/fetch-ocr-models.sh` / `vendor/ocr` (~tens of MB); not required for Vision/tesseract |
 
 Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~45–75MB** total across all platform artifacts (not all in one universal binary).
 
@@ -115,3 +115,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | Landed `mira::ffmpeg` resolver + `RecordSession` mp4/gif finalize (ffmpeg → avconvert → keep `.mov`). |
 | 2026-11-06 | macOS record default: in-process ScreenCaptureKit via `cidre` (`SCRecordingOutput`); region stays on `screencapture -i`. |
 | 2026-11-06 | Windows record: Graphics Capture + MF via `windows-capture`. Linux: `wf-recorder` / ffmpeg `x11grab`. |
+| 2026-11-06 | OCR: RapidOCR/PP-OCRv6 ONNX optional via `vendor/ocr`; Vision / tesseract remain fallbacks. |

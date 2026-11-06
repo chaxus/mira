@@ -21,6 +21,9 @@ parking_lot = "0.12"
 thiserror = "2"
 tempfile = "3"
 ab_glyph = "0.2"
+rapidocr-core = { version = "0.2", default-features = false, features = ["model-download"] }
+# rapidocr-core 0.2.2 expects Session::builder() without Environment (ort ≤ rc.12).
+ort = { version = "=2.0.0-rc.12", default-features = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 nsh-platform-linux = { version = "0.4.0", default-features = false }

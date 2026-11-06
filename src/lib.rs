@@ -680,16 +680,21 @@ fn action_row_export(
                     Ok(text) => {
                         let preview: String = text.chars().take(160).collect();
                         meta.set(preview);
+                        let engine = if ocr::rapidocr_available() {
+                            "RapidOCR"
+                        } else {
+                            "Vision/tesseract"
+                        };
                         if let Err(e) = arboard::Clipboard::new()
                             .and_then(|mut c| c.set_text(text.clone()))
                         {
                             status.set(format!(
-                                "{} ok (clipboard copy failed: {e})",
+                                "{} via {engine} (clipboard copy failed: {e})",
                                 ExportTarget::ExtractText.as_str()
                             ));
                         } else {
                             status.set(format!(
-                                "{} — copied {} chars",
+                                "{} via {engine} — copied {} chars",
                                 ExportTarget::ExtractText.as_str(),
                                 text.len()
                             ));

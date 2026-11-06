@@ -1,0 +1,4 @@
+# Never commit multi‑MB ONNX weights / dicts.
+*
+!.gitignore
+!README.md
