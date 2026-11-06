@@ -1,4 +1,4 @@
-//! Screen recording options (Lark-parity).
+//! Screen recording options (Lark-parity) — wired in P2.
 
 /// Container for a recording session.
 #[derive(Debug, Clone, PartialEq, Eq)]

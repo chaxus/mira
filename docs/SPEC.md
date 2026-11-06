@@ -14,29 +14,28 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 
 | Feature | Status |
 |---|---|
-| Region select | Planned (P1) |
-| Fullscreen | Planned (P1) |
+| Region select | **P1** (macOS `screencapture -i`) |
+| Fullscreen | **P1** (macOS `screencapture`) |
 | Scroll / long capture | Planned (P2) |
-| Hide Mira window while capturing | Planned (P1) |
-| Custom global hotkey | Planned (P1) |
+| Hide Mira window while capturing | Planned (P1.1) |
+| Custom global hotkey | Planned (P1.1); defaults ship in P1 |
 
 ### Annotate
 
 | Feature | Status |
 |---|---|
-| Rect / ellipse / arrow / pen | Planned (P1) |
-| Text | Planned (P1) |
-| Tag / callout | Planned (P2) |
-| Mosaic (brush + box) | Planned (P1) |
-| Watermark | Planned (P2) |
-| Undo | Planned (P1) |
+| Rect / ellipse / arrow / pen | **P1** (bitmap strokes + sample apply) |
+| Mosaic (box) | **P1** |
+| Undo | **P1** |
+| Text / tag / watermark | Planned (P2) |
+| Interactive drag-to-draw on preview | Planned (P1.1) |
 
 ### Export
 
 | Feature | Status |
 |---|---|
-| Copy to clipboard | Planned (P1) |
-| Save to file | Planned (P1) |
+| Copy to clipboard | **P1** |
+| Save to file | **P1** (Pictures/Mira-*.png) |
 | Pin to screen | Planned (P2) |
 | Extract text (OCR) | Planned (P2) |
 
@@ -49,6 +48,13 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | Format (mp4 / gif) | Planned (P2) |
 | Preview · download · clipboard | Planned (P2) |
 
+## Hotkeys (P1 defaults)
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+Shift+A | Region capture → clipboard |
+| Ctrl+Shift+S | Fullscreen capture → clipboard |
+
 ## Architecture
 
 ```
@@ -56,11 +62,12 @@ hotkey → capture → annotate → export
                  ↘ record → export
 ```
 
-- `capture` — OS pixel pipelines (ScreenCaptureKit / DXGI Desktop Duplication / PipeWire).
-- `annotate` — vector overlay on a bitmap frame.
-- `record` — timed frame encoder.
-- `export` — clipboard, filesystem, pin window, OCR.
-- Shell UI — NSH Rust components (`App`), tray / floating editor later.
+- `capture` — macOS `screencapture` today; Windows / Linux native paths next.
+- `annotate` — vector-ish strokes flattened onto RGBA.
+- `record` — timed frame encoder (P2).
+- `export` — clipboard (`arboard`), filesystem PNG.
+- `hotkey` — `global-hotkey` background listener.
+- Shell UI — NSH Rust `App`.
 
 ## Non-goals (v0)
 
