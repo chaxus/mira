@@ -12,7 +12,7 @@ use cidre::{arc, blocks, cf, cg, ns, sc};
 use super::CaptureError;
 
 /// Capture the display under the mouse cursor (falls back to the first display).
-pub fn capture_fullscreen_png(path: &Path) -> Result<(), CaptureError> {
+pub fn capture_fullscreen_png(path: &Path, show_cursor: bool) -> Result<(), CaptureError> {
     let content = shareable_content()?;
     let display = display_under_cursor(&content)?;
 
@@ -27,7 +27,7 @@ pub fn capture_fullscreen_png(path: &Path) -> Result<(), CaptureError> {
     let mut cfg = sc::StreamCfg::new();
     cfg.set_width(width);
     cfg.set_height(height);
-    cfg.set_shows_cursor(false);
+    cfg.set_shows_cursor(show_cursor);
     cfg.set_src_rect(rect);
 
     let image = capture_cg_image(&filter, &cfg)?;

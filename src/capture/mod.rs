@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use image::RgbaImage;
 use thiserror::Error;
@@ -29,6 +30,33 @@ impl CaptureMode {
             Self::Scroll => "scroll",
         }
     }
+}
+
+/// Live capture preferences (shared with the hotkey listener).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CaptureOptions {
+    /// Include the mouse pointer in the bitmap when the backend supports it.
+    pub show_cursor: bool,
+}
+
+impl Default for CaptureOptions {
+    fn default() -> Self {
+        Self { show_cursor: false }
+    }
+}
+
+static SHOW_CURSOR: AtomicBool = AtomicBool::new(false);
+
+/// Current capture options.
+pub fn options() -> CaptureOptions {
+    CaptureOptions {
+        show_cursor: SHOW_CURSOR.load(Ordering::Relaxed),
+    }
+}
+
+/// Toggle / set whether screenshots include the mouse cursor.
+pub fn set_show_cursor(on: bool) {
+    SHOW_CURSOR.store(on, Ordering::Relaxed);
 }
 
 /// Capture failures.
@@ -93,30 +121,42 @@ fn temp_png_path() -> Result<PathBuf, CaptureError> {
 
 #[cfg(target_os = "macos")]
 fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), CaptureError> {
+    let show_cursor = options().show_cursor;
     match mode {
-        CaptureMode::Fullscreen => match macos_sck::capture_fullscreen_png(path) {
-            Ok(()) => Ok(()),
-            Err(err) => {
-                eprintln!("mira: SCK fullscreen failed ({err}); falling back to screencapture");
-                macos_screencapture(CaptureMode::Fullscreen, path)
+        CaptureMode::Fullscreen => {
+            match macos_sck::capture_fullscreen_png(path, show_cursor) {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    eprintln!("mira: SCK fullscreen failed ({err}); falling back to screencapture");
+                    macos_screencapture(CaptureMode::Fullscreen, path, show_cursor)
+                }
             }
-        },
-        CaptureMode::Region => macos_screencapture(CaptureMode::Region, path),
+        }
+        CaptureMode::Region => macos_screencapture(CaptureMode::Region, path, show_cursor),
         CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
     }
 }
 
 /// `screencapture` CLI — used for interactive region and as SCK fullscreen fallback.
 #[cfg(target_os = "macos")]
-fn macos_screencapture(mode: CaptureMode, path: &std::path::Path) -> Result<(), CaptureError> {
+fn macos_screencapture(
+    mode: CaptureMode,
+    path: &std::path::Path,
+    show_cursor: bool,
+) -> Result<(), CaptureError> {
     // -x: no sound; -t png; -i: interactive region (Lark-like drag).
+    // -C: include cursor (non-interactive only).
     let mut cmd = Command::new("screencapture");
     cmd.arg("-x").arg("-t").arg("png");
     match mode {
         CaptureMode::Region => {
             cmd.arg("-i");
         }
-        CaptureMode::Fullscreen => {}
+        CaptureMode::Fullscreen => {
+            if show_cursor {
+                cmd.arg("-C");
+            }
+        }
         CaptureMode::Scroll => return Err(CaptureError::Unsupported("scroll")),
     }
     cmd.arg(path);
@@ -233,9 +273,11 @@ fn linux_region(path: &std::path::Path) -> Result<(), CaptureError> {
         if geometry.is_empty() {
             return Err(CaptureError::Cancelled);
         }
-        let status = Command::new("grim")
-            .args(["-g", &geometry, &path_str])
-            .status()?;
+        let mut grim = Command::new("grim");
+        if options().show_cursor {
+            grim.arg("-c");
+        }
+        let status = grim.args(["-g", &geometry, &path_str]).status()?;
         return finish_tool_status(status, path);
     }
 
@@ -311,5 +353,15 @@ mod tests {
         assert_eq!(CaptureMode::Region.as_str(), "region");
         assert_eq!(CaptureMode::Fullscreen.as_str(), "fullscreen");
         assert_eq!(CaptureMode::Scroll.as_str(), "scroll");
+    }
+
+    #[test]
+    fn show_cursor_option_roundtrips() {
+        let prev = options().show_cursor;
+        set_show_cursor(true);
+        assert!(options().show_cursor);
+        set_show_cursor(false);
+        assert!(!options().show_cursor);
+        set_show_cursor(prev);
     }
 }

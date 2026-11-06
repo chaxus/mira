@@ -43,6 +43,7 @@ pub fn App() -> impl IntoElement {
     hotkey::ensure_started();
 
     let mode = signal(CaptureMode::Region);
+    let show_cursor = signal(capture::options().show_cursor);
     let tool = signal(AnnotateTool::Arrow);
     let label = signal(String::from("Note"));
     let status = signal(String::from("Ready · Ctrl+Shift+A region · Ctrl+Shift+S screen"));
@@ -66,7 +67,7 @@ pub fn App() -> impl IntoElement {
                 .gap_3()
                 .child(title())
                 .child(section_label("Capture"))
-                .child(capture_row(&mode))
+                .child(capture_row(&mode, &show_cursor))
                 .child(action_row_capture(
                     &mode,
                     &status,
@@ -188,8 +189,9 @@ fn meta_line(meta: &Signal<String>) -> impl IntoElement {
         .text_color(move || theme().muted_foreground)
 }
 
-fn capture_row(mode: &Signal<CaptureMode>) -> impl IntoElement {
+fn capture_row(mode: &Signal<CaptureMode>, show_cursor: &Signal<bool>) -> impl IntoElement {
     let mode = mode.clone();
+    let show_cursor = show_cursor.clone();
     view()
         .flex_row()
         .flex_wrap()
@@ -197,6 +199,40 @@ fn capture_row(mode: &Signal<CaptureMode>) -> impl IntoElement {
         .child(mode_chip("Region", CaptureMode::Region, &mode))
         .child(mode_chip("Fullscreen", CaptureMode::Fullscreen, &mode))
         .child(mode_chip("Scroll", CaptureMode::Scroll, &mode))
+        .child({
+            let show_cursor = show_cursor.clone();
+            let selected = move || show_cursor.get();
+            view()
+                .px_3()
+                .py_1()
+                .rounded_md()
+                .bg(move || {
+                    if selected() {
+                        theme().primary
+                    } else {
+                        theme().muted
+                    }
+                })
+                .text_color(move || {
+                    if selected() {
+                        theme().primary_foreground
+                    } else {
+                        theme().foreground
+                    }
+                })
+                .on_press(move || {
+                    let next = !show_cursor.get();
+                    show_cursor.set(next);
+                    capture::set_show_cursor(next);
+                })
+                .child(text(move || {
+                    if show_cursor.get() {
+                        "Cursor on"
+                    } else {
+                        "Cursor off"
+                    }
+                }).text_size(px(13.0)))
+        })
 }
 
 fn annotate_row(tool: &Signal<AnnotateTool>) -> impl IntoElement {
