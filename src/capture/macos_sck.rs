@@ -11,13 +11,10 @@ use cidre::{arc, blocks, cf, cg, ns, sc};
 
 use super::CaptureError;
 
-/// Capture the primary display to a PNG at `path`.
+/// Capture the display under the mouse cursor (falls back to the first display).
 pub fn capture_fullscreen_png(path: &Path) -> Result<(), CaptureError> {
     let content = shareable_content()?;
-    let displays = content.displays();
-    let display = displays
-        .get(0)
-        .map_err(|_| CaptureError::Message("no displays available".into()))?;
+    let display = display_under_cursor(&content)?;
 
     let exclude = self_windows(&content);
     let filter = sc::ContentFilter::with_display_excluding_windows(&display, &exclude);
@@ -35,6 +32,26 @@ pub fn capture_fullscreen_png(path: &Path) -> Result<(), CaptureError> {
 
     let image = capture_cg_image(&filter, &cfg)?;
     write_png(&image, path)
+}
+
+fn display_under_cursor(
+    content: &sc::ShareableContent,
+) -> Result<arc::R<sc::Display>, CaptureError> {
+    let loc = ns::Event::mouse_location();
+    let displays = content.displays();
+    let mut first = None;
+    for i in 0..displays.len() {
+        let Ok(display) = displays.get(i) else {
+            continue;
+        };
+        if first.is_none() {
+            first = Some(display.retained());
+        }
+        if display.frame().contains_point(&loc) {
+            return Ok(display.retained());
+        }
+    }
+    first.ok_or_else(|| CaptureError::Message("no displays available".into()))
 }
 
 /// Windows owned by this process — excluded so Mira chrome stays out of the shot

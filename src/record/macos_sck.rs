@@ -88,7 +88,7 @@ impl SckSession {
         let filter = if options.region {
             pick_content_filter()?
         } else {
-            primary_display_filter()?
+            active_display_filter()?
         };
         Self::start_with_filter(filter, options, path)
     }
@@ -174,16 +174,35 @@ pub fn raw_path_for(format: RecordFormat) -> PathBuf {
     path
 }
 
-fn primary_display_filter() -> Result<arc::R<sc::ContentFilter>, RecordError> {
+fn active_display_filter() -> Result<arc::R<sc::ContentFilter>, RecordError> {
     let content = shareable_content()?;
-    let displays = content.displays();
-    let display = displays.get(0).map_err(|_| {
-        RecordError::Message("no displays available for ScreenCaptureKit".into())
-    })?;
+    let display = display_under_cursor(&content)?;
     let exclude = self_windows(&content);
     Ok(sc::ContentFilter::with_display_excluding_windows(
         &display, &exclude,
     ))
+}
+
+fn display_under_cursor(
+    content: &sc::ShareableContent,
+) -> Result<arc::R<sc::Display>, RecordError> {
+    let loc = ns::Event::mouse_location();
+    let displays = content.displays();
+    let mut first = None;
+    for i in 0..displays.len() {
+        let Ok(display) = displays.get(i) else {
+            continue;
+        };
+        if first.is_none() {
+            first = Some(display.retained());
+        }
+        if display.frame().contains_point(&loc) {
+            return Ok(display.retained());
+        }
+    }
+    first.ok_or_else(|| {
+        RecordError::Message("no displays available for ScreenCaptureKit".into())
+    })
 }
 
 /// Drop Mira's own windows from the capture so the panel is not recorded.
