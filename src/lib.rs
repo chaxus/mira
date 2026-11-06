@@ -2,6 +2,7 @@
 
 mod annotate;
 mod capture;
+mod chrome;
 mod export;
 mod hotkey;
 mod record;

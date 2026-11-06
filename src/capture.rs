@@ -46,7 +46,11 @@ pub enum CaptureError {
 }
 
 /// Run a capture for `mode` and return RGBA pixels.
+///
+/// Hides Mira's own windows for the duration (best-effort), matching Lark's
+/// “hold Shift to hide the app” behaviour.
 pub fn capture(mode: CaptureMode) -> Result<RgbaImage, CaptureError> {
+    let _hidden = crate::chrome::HideGuard::acquire();
     match mode {
         CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
         CaptureMode::Region | CaptureMode::Fullscreen => capture_png(mode),
