@@ -1,4 +1,4 @@
-//! Screen capture (P1: macOS `screencapture`; other platforms stubbed).
+//! Screen capture — macOS `screencapture`, Windows `xcap` / snipping tool.
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -105,10 +105,61 @@ fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), Cap
 
 #[cfg(target_os = "windows")]
 fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), CaptureError> {
-    let _ = (mode, path);
-    Err(CaptureError::Unsupported(
-        "windows capture lands in P1.1 — use macOS for now",
-    ))
+    match mode {
+        CaptureMode::Fullscreen => windows_fullscreen(path),
+        CaptureMode::Region => windows_region(path),
+        CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
+    }
+}
+
+/// Primary monitor via `xcap`.
+#[cfg(target_os = "windows")]
+fn windows_fullscreen(path: &std::path::Path) -> Result<(), CaptureError> {
+    use xcap::Monitor;
+
+    let monitor = Monitor::from_point(0, 0).map_err(|e| CaptureError::Message(e.to_string()))?;
+    let image = monitor
+        .capture_image()
+        .map_err(|e| CaptureError::Message(e.to_string()))?;
+    image
+        .save(path)
+        .map_err(|e| CaptureError::Image(e.to_string()))?;
+    Ok(())
+}
+
+/// Opens the system snipping overlay (`ms-screenclip:`), then reads the
+/// resulting image from the clipboard into `path`.
+#[cfg(target_os = "windows")]
+fn windows_region(path: &std::path::Path) -> Result<(), CaptureError> {
+    use std::time::{Duration, Instant};
+
+    use arboard::Clipboard;
+
+    let _ = Command::new("explorer")
+        .arg("ms-screenclip:")
+        .spawn()
+        .map_err(|e| CaptureError::Message(format!("failed to open snipping tool: {e}")))?;
+
+    let deadline = Instant::now() + Duration::from_secs(120);
+    let mut clipboard =
+        Clipboard::new().map_err(|e| CaptureError::Message(e.to_string()))?;
+    // Give the overlay a moment to steal focus before we start polling.
+    std::thread::sleep(Duration::from_millis(400));
+    while Instant::now() < deadline {
+        if let Ok(img) = clipboard.get_image() {
+            let rgba = image::RgbaImage::from_raw(
+                img.width as u32,
+                img.height as u32,
+                img.bytes.into_owned(),
+            )
+            .ok_or_else(|| CaptureError::Image("invalid clipboard image".into()))?;
+            rgba.save(path)
+                .map_err(|e| CaptureError::Image(e.to_string()))?;
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    Err(CaptureError::Cancelled)
 }
 
 #[cfg(target_os = "linux")]
