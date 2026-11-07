@@ -6,15 +6,15 @@
 
 ## Status
 
-**P2 (current):** desktop capture on three OSes, hide-self, interactive annotate, scroll stitch, pin, OCR, watermark, macOS region record.
+**P3 (in progress):** packaging script + macOS keep-alive-on-close (Dock reopen); capture/record/OCR/pin already on three OSes.
 
 | Phase | Deliverable |
 |---|---|
 | P0 | Shell UI, domain types, Apache-2.0 public repo |
 | P1 | Hotkeys, region/fullscreen (macOS), core annotate, clipboard / file |
 | P1.1 | Windows / Linux capture, hide Mira while capturing, drag-to-draw preview |
-| P2 | Scroll stitch, pin, OCR, watermark, macOS region record |
-| P3 | Tray / polish, packaging, Win/Linux record, richer text/tag tools |
+| P2 | Scroll stitch, pin, OCR, watermark, region record, remappable hotkeys |
+| P3 | Packaging (`scripts/package.sh`), macOS close→Dock keep-alive; menubar tray later |
 
 Spec: [`docs/SPEC.md`](docs/SPEC.md) · Tech plan: [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md)
 
@@ -54,6 +54,16 @@ cargo run
 ```sh
 cargo test --lib
 ```
+
+## Package
+
+```sh
+./scripts/package.sh
+```
+
+Produces host artifacts under `dist/` via `nsh package` (`.app` / `.tar.gz` / `.zip` depending on OS). Falls back to `cargo build --release` if `nsh` is missing.
+
+On macOS, closing the panel keeps Mira alive (reopen from the Dock); global hotkeys continue to work.
 
 ## License
 

@@ -19,6 +19,9 @@ fn main() -> impl std::process::Termination {
             #[cfg(any(target_os = "linux", target_os = "windows"))]
             app_id: "com.chaxus.mira".to_owned(),
             size: (440, 720),
+            // Close hides the panel; reopen from Dock / task switcher. Hotkeys keep working.
+            #[cfg(target_os = "macos")]
+            keep_alive_on_close: true,
             ..Default::default()
         },
     )
