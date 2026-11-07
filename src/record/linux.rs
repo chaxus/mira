@@ -1,7 +1,6 @@
-//! Linux screen recording — prefer `wf-recorder` on Wayland, else ffmpeg `x11grab`.
+//! Linux screen recording — PipeWire via `wf-recorder` on Wayland, else ffmpeg `x11grab`.
 //!
 //! Encode uses the same trimmed/PATH ffmpeg side-car when remux/GIF is needed.
-//! Full PipeWire portal integration can replace this later (see TECH_PLAN).
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -11,11 +10,22 @@ use crate::ffmpeg;
 
 pub fn start(options: &RecordOptions) -> Result<(&'static str, Child, PathBuf), RecordError> {
     let path = raw_path(options);
-    if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some()
+        || std::env::var_os("XDG_SESSION_TYPE").is_some_and(|v| v == "wayland");
+
+    if wayland {
         if which("wf-recorder") {
-            return Ok(("wf-recorder", start_wf_recorder(options, &path)?, path));
+            // wf-recorder talks to the compositor over PipeWire / wlr-screencopy.
+            return Ok((
+                "wf-recorder (PipeWire)",
+                start_wf_recorder(options, &path)?,
+                path,
+            ));
         }
-        // Fall through: try x11grab when DISPLAY is also set (XWayland).
+        return Err(RecordError::Message(
+            "Wayland record needs `wf-recorder` (PipeWire). Install it or use an X11 session with ffmpeg."
+                .into(),
+        ));
     }
 
     if std::env::var_os("DISPLAY").is_some() {

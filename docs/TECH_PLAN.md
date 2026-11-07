@@ -32,7 +32,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 | Fallback encode | System tools when present | e.g. macOS VideoToolbox / `avconvert`; PATH `ffmpeg` |
 | macOS capture | **ScreenCaptureKit** (cidre): screenshots via `SCScreenshotManager`, record via `SCRecordingOutput`; region record via content-sharing picker; interactive still via `screencapture -i` | |
 | Windows capture | **Windows.Graphics.Capture** + Media Foundation (`windows-capture`) | |
-| Linux capture | **wf-recorder** (Wayland) or ffmpeg **x11grab**; PipeWire portal later | |
+| Linux capture | Wayland: **grim** / xdg-desktop-portal screenshot + **wf-recorder** (PipeWire); X11: **xcap** / ffmpeg **x11grab** | |
 | Default container | **mp4** (H.264) via trimmed ffmpeg | `.mov` is never user-facing; remux or error |
 | GIF | **In scope** once bundled ffmpeg ships | Was deferred when ffmpeg was banned |
 
@@ -56,7 +56,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 1. ~~Drop ffmpeg from the *required* finalize path~~ (done) — `avconvert` can remux interim captures to mp4 when ffmpeg is absent.
 2. ~~**Add trimmed ffmpeg vendor pipeline**~~ (done) — `mira::ffmpeg` resolves `MIRA_FFMPEG` → `vendor/ffmpeg/<triple>` → `PATH`; `scripts/fetch-ffmpeg.sh` + README for trimmed builds; `RecordSession` finalize uses ffmpeg for mp4/gif with system fallbacks.
 3. ~~**ScreenCaptureKit (macOS) in-process capture**~~ (done) — `cidre` + `SCRecordingOutput` (H.264) for fullscreen; CLI fallback on failure / interactive region.
-4. ~~Windows / Linux native capture backends~~ (done) — Windows WGC+MF; Linux wf-recorder / x11grab; ffmpeg side-car for mux/GIF. PipeWire portal still a polish item.
+4. ~~Windows / Linux native capture backends~~ (done) — Windows WGC+MF; Linux Wayland PipeWire via grim/wf-recorder (+ portal screenshot fallback) / X11 xcap·x11grab; ffmpeg side-car for mux/GIF.
 
 ---
 
@@ -125,3 +125,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | Remappable global hotkeys via panel + `hotkeys.conf` (global-hotkey string parse). |
 | 2026-11-07 | Drop `.mov` delivery — recordings finalize to **mp4** (or gif); missing remuxer is an error. |
 | 2026-11-07 | Stop record puts the mp4/gif on the clipboard (macOS file ref, else path text). |
+| 2026-11-07 | Linux Wayland: grim + portal screenshot; record via wf-recorder (PipeWire). |

@@ -10,6 +10,9 @@ use thiserror::Error;
 #[cfg(target_os = "macos")]
 mod macos_sck;
 
+#[cfg(target_os = "linux")]
+mod linux_portal;
+
 /// How Mira grabs pixels before annotation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CaptureMode {
@@ -244,6 +247,20 @@ fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), Cap
 
 #[cfg(target_os = "linux")]
 fn linux_fullscreen(path: &std::path::Path) -> Result<(), CaptureError> {
+    let show_cursor = options().show_cursor;
+    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some()
+        || std::env::var_os("XDG_SESSION_TYPE").is_some_and(|v| v == "wayland");
+
+    // PipeWire / wlr path first on Wayland (grim), then xdg-desktop-portal.
+    if wayland {
+        match linux_portal::capture_fullscreen_png(path, show_cursor) {
+            Ok(()) => return Ok(()),
+            Err(err) => {
+                eprintln!("mira: Wayland/PipeWire capture failed ({err}); trying xcap");
+            }
+        }
+    }
+
     use xcap::Monitor;
 
     let monitor = Monitor::from_point(0, 0).map_err(|e| CaptureError::Message(e.to_string()))?;
