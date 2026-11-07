@@ -128,3 +128,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-07 | Linux Wayland: grim + portal screenshot; record via wf-recorder (PipeWire). |
 | 2026-11-07 | macOS region screenshot: SCK freeze-frame + drag crop; `screencapture -i` fallback. |
 | 2026-11-07 | P3 baseline: `scripts/package.sh` + macOS `keep_alive_on_close` (Dock reopen). |
+| 2026-11-07 | System tray / menu bar via `tray-icon` (Show · Region · Fullscreen · Quit). |

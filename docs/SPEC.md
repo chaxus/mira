@@ -74,6 +74,13 @@ hotkey → capture → annotate → export
 - `hotkey` — `global-hotkey` background listener.
 - Shell UI — NSH Rust `App`.
 
+## Shell / tray
+
+| Feature | Status |
+|---|---|
+| System tray / menu bar | **P3** (`tray-icon`: Show Mira · Region · Fullscreen · Quit) |
+| Close keeps process alive | **P3** macOS `keep_alive_on_close` (Dock / tray reopen) |
+
 ## Non-goals (v0)
 
 - Feishu IM integration or bot upload.

@@ -14,7 +14,7 @@
 | P1 | Hotkeys, region/fullscreen (macOS), core annotate, clipboard / file |
 | P1.1 | Windows / Linux capture, hide Mira while capturing, drag-to-draw preview |
 | P2 | Scroll stitch, pin, OCR, watermark, region record, remappable hotkeys |
-| P3 | Packaging (`scripts/package.sh`), macOS close→Dock keep-alive; menubar tray later |
+| P3 | Packaging (`scripts/package.sh`), macOS close→Dock keep-alive, system tray / menu bar |
 
 Spec: [`docs/SPEC.md`](docs/SPEC.md) · Tech plan: [`docs/TECH_PLAN.md`](docs/TECH_PLAN.md)
 
@@ -63,7 +63,7 @@ cargo test --lib
 
 Produces host artifacts under `dist/` via `nsh package` (`.app` / `.tar.gz` / `.zip` depending on OS). Falls back to `cargo build --release` if `nsh` is missing.
 
-On macOS, closing the panel keeps Mira alive (reopen from the Dock); global hotkeys continue to work.
+On macOS, closing the panel keeps Mira alive (reopen from the Dock or the menu-bar tray). The tray menu offers Show / Region / Fullscreen / Quit; global hotkeys continue to work.
 
 ## License
 

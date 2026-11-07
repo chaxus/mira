@@ -11,6 +11,7 @@ mod pin;
 mod preview;
 mod record;
 mod scroll;
+mod tray;
 
 use annotate::{AnnotateTool, Document, Stroke};
 use capture::CaptureMode;
@@ -41,6 +42,8 @@ fn native(registry: &mut Registry) {
 #[component]
 pub fn App() -> impl IntoElement {
     hotkey::ensure_started();
+    // Must run on the UI/main thread (macOS NSStatusItem requirement).
+    tray::ensure_started();
 
     let mode = signal(CaptureMode::Region);
     let show_cursor = signal(capture::options().show_cursor);

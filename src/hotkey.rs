@@ -61,6 +61,11 @@ fn set_status(msg: impl Into<String>) {
     *LAST_STATUS.lock() = msg.into();
 }
 
+/// Update the shared status line (hotkeys, tray, …).
+pub(crate) fn note_status(msg: impl Into<String>) {
+    set_status(msg);
+}
+
 /// Currently active (or default) bindings for the settings UI.
 pub fn current_bindings() -> HotkeyBindings {
     BINDINGS
