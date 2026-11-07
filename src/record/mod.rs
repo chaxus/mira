@@ -41,12 +41,10 @@ impl Default for RecordOptions {
     }
 }
 
-/// Output format for recordings.
+/// Output format for recordings (user-facing delivery is always mp4 or gif).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum RecordFormat {
-    /// QuickTime / MOV container.
-    Mov,
-    /// Prefer native mp4 or ffmpeg remux.
+    /// H.264 in an mp4 container (default; most portable).
     #[default]
     Mp4,
     /// Post-process capture to GIF via ffmpeg.
@@ -56,7 +54,6 @@ pub enum RecordFormat {
 impl RecordFormat {
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Mov => "mov",
             Self::Mp4 => "mp4",
             Self::Gif => "gif",
         }
@@ -193,13 +190,13 @@ fn cli_raw_path() -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
+    // screencapture -v still writes QuickTime; finalize remuxes to mp4.
     path.push(format!("Mira-{stamp}.mov"));
     path
 }
 
 fn finalize(raw: &Path, format: RecordFormat) -> Result<PathBuf, RecordError> {
     match format {
-        RecordFormat::Mov => Ok(raw.to_path_buf()),
         RecordFormat::Mp4 => {
             if raw.extension().and_then(|e| e.to_str()) == Some("mp4") {
                 return Ok(raw.to_path_buf());
@@ -267,13 +264,19 @@ fn remux_mp4_system(raw: &Path, mp4: &Path) -> Result<PathBuf, RecordError> {
                 }
             }
         }
-        Ok(raw.to_path_buf())
+        Err(RecordError::Message(
+            "could not remux to mp4 — install ffmpeg (scripts/fetch-ffmpeg.sh) or set MIRA_FFMPEG"
+                .into(),
+        ))
     }
 
     #[cfg(not(target_os = "macos"))]
     {
-        let _ = mp4;
-        Ok(raw.to_path_buf())
+        let _ = (raw, mp4);
+        Err(RecordError::Message(
+            "could not remux to mp4 — install ffmpeg (scripts/fetch-ffmpeg.sh) or set MIRA_FFMPEG"
+                .into(),
+        ))
     }
 }
 

@@ -167,7 +167,6 @@ pub fn raw_path_for(format: RecordFormat) -> PathBuf {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let ext = match format {
-        RecordFormat::Mov => "mov",
         RecordFormat::Mp4 | RecordFormat::Gif => "mp4",
     };
     path.push(format!("Mira-{stamp}.{ext}"));

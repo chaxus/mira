@@ -39,7 +39,6 @@ fn raw_path(options: &RecordOptions) -> PathBuf {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let ext = match options.format {
-        super::RecordFormat::Mov => "mov",
         super::RecordFormat::Mp4 | super::RecordFormat::Gif => "mp4",
     };
     path.push(format!("Mira-{stamp}.{ext}"));

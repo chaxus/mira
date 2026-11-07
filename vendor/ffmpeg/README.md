@@ -26,7 +26,7 @@ Binaries are **gitignored**. Use [`scripts/fetch-ffmpeg.sh`](../../scripts/fetch
 | Rule | Target |
 |---|---|
 | Uncompressed size | Prefer **≤ ~25MB** per triple |
-| Codecs | H.264 + AAC + mp4/mov + gif only |
+| Codecs | H.264 + AAC + mp4 (+ gif); mov demux OK for remux only |
 | Prefer | LGPL configure if you can avoid GPL encoders; document if libx264 (GPL) is linked |
 
 Do **not** vendor full “essentials+/full” static builds (~80–150MB+) into releases.

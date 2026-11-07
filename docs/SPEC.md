@@ -47,7 +47,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 |---|---|
 | Region record | **P2** macOS SCK picker (CLI fallback) / Windows picker / Linux `slurp` |
 | Show cursor | **P2** (`-k` clicks) |
-| Format | **P2** default **mp4** via trimmed/PATH ffmpeg (fallback `avconvert` / `.mov`) |
+| Format | **P2** **mp4 only** (H.264); remux via ffmpeg / `avconvert` — no `.mov` delivery |
 | GIF | Supported when ffmpeg is resolved (vendor / `MIRA_FFMPEG` / PATH) |
 | Preview · download · clipboard | Partial (save path; clipboard later) |
 
