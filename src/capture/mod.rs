@@ -10,6 +10,9 @@ use thiserror::Error;
 #[cfg(target_os = "macos")]
 mod macos_sck;
 
+#[cfg(target_os = "macos")]
+mod macos_region;
+
 #[cfg(target_os = "linux")]
 mod linux_portal;
 
@@ -135,7 +138,14 @@ fn platform_capture(mode: CaptureMode, path: &std::path::Path) -> Result<(), Cap
                 }
             }
         }
-        CaptureMode::Region => macos_screencapture(CaptureMode::Region, path, show_cursor),
+        CaptureMode::Region => match macos_region::capture_region_png(path, show_cursor) {
+            Ok(()) => Ok(()),
+            Err(CaptureError::Cancelled) => Err(CaptureError::Cancelled),
+            Err(err) => {
+                eprintln!("mira: native region failed ({err}); falling back to screencapture -i");
+                macos_screencapture(CaptureMode::Region, path, show_cursor)
+            }
+        },
         CaptureMode::Scroll => Err(CaptureError::Unsupported("scroll")),
     }
 }

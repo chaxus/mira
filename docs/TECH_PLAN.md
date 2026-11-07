@@ -30,7 +30,7 @@ Mira additionally accepts a **minimal bundled ffmpeg** for *encode / remux / GIF
 | Capture | **Native OS APIs** | Permissions, region, cursor, hide-self |
 | Encode / mux / GIF | **Trimmed bundled ffmpeg** (option B) | Per-platform binary under `vendor/ffmpeg/<triple>/` or download-on-build |
 | Fallback encode | System tools when present | e.g. macOS VideoToolbox / `avconvert`; PATH `ffmpeg` |
-| macOS capture | **ScreenCaptureKit** (cidre): screenshots via `SCScreenshotManager`, record via `SCRecordingOutput`; region record via content-sharing picker; interactive still via `screencapture -i` | |
+| macOS capture | **ScreenCaptureKit** (cidre): screenshots via `SCScreenshotManager`, record via `SCRecordingOutput`; region shot via freeze-frame overlay (CLI fallback); region record via content-sharing picker | |
 | Windows capture | **Windows.Graphics.Capture** + Media Foundation (`windows-capture`) | |
 | Linux capture | Wayland: **grim** / xdg-desktop-portal screenshot + **wf-recorder** (PipeWire); X11: **xcap** / ffmpeg **x11grab** | |
 | Default container | **mp4** (H.264) via trimmed ffmpeg | `.mov` is never user-facing; remux or error |
@@ -126,3 +126,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-07 | Drop `.mov` delivery — recordings finalize to **mp4** (or gif); missing remuxer is an error. |
 | 2026-11-07 | Stop record puts the mp4/gif on the clipboard (macOS file ref, else path text). |
 | 2026-11-07 | Linux Wayland: grim + portal screenshot; record via wf-recorder (PipeWire). |
+| 2026-11-07 | macOS region screenshot: SCK freeze-frame + drag crop; `screencapture -i` fallback. |

@@ -14,7 +14,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 
 | Feature | Status |
 |---|---|
-| Region select | **P1** macOS `screencapture -i`; **P1.1** Windows snipping / Linux grim·GNOME·KDE |
+| Region select | **P1** macOS native freeze-frame drag (SCK + overlay, `screencapture -i` fallback); **P1.1** Windows snipping / Linux grim·GNOME·KDE |
 | Fullscreen | **P1** macOS ScreenCaptureKit (`SCScreenshotManager`, display under cursor, CLI fallback); **P1.1** Windows `xcap`; Linux Wayland grim/portal → `xcap` |
 | Include mouse cursor | **P2** (macOS SCK / `screencapture -C`; toggle in Capture row) |
 | Scroll / long capture | **P2** (multi-step fullscreen stitch) |
@@ -67,7 +67,7 @@ hotkey → capture → annotate → export
                  ↘ record → export
 ```
 
-- `capture` — macOS ScreenCaptureKit fullscreen + `screencapture -i` region; Windows snip/`xcap`; Linux tools/`xcap`.
+- `capture` — macOS ScreenCaptureKit fullscreen + native region overlay; Windows snip/`xcap`; Linux grim/portal/`xcap`.
 - `annotate` — vector-ish strokes flattened onto RGBA.
 - `record` — macOS SCK / Windows WGC / Linux wf-recorder·x11grab; encode/mux via system tools and/or **trimmed bundled ffmpeg** (see [`TECH_PLAN.md`](TECH_PLAN.md) option B).
 - `export` — clipboard (`arboard`), filesystem PNG.
