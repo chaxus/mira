@@ -54,6 +54,41 @@ pub fn copy_to_clipboard(img: &RgbaImage) -> Result<(), ExportError> {
         .map_err(|e| ExportError::Clipboard(e.to_string()))
 }
 
+/// Copy plain text (e.g. a file path) to the clipboard.
+pub fn copy_text(text: &str) -> Result<(), ExportError> {
+    let mut clipboard =
+        Clipboard::new().map_err(|e| ExportError::Clipboard(e.to_string()))?;
+    clipboard
+        .set_text(text.to_owned())
+        .map_err(|e| ExportError::Clipboard(e.to_string()))
+}
+
+/// Put a saved recording on the clipboard.
+///
+/// Prefer a real file reference on macOS (paste into Finder / Mail). Elsewhere
+/// (and on failure) copy the absolute path as text.
+pub fn copy_recording(path: &Path) -> Result<&'static str, ExportError> {
+    if !path.exists() {
+        return Err(ExportError::Clipboard("recording file missing".into()));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let posix = path.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"");
+        let script = format!(
+            r#"set the clipboard to (POSIX file "{posix}")"#
+        );
+        let status = Command::new("osascript")
+            .args(["-e", &script])
+            .status()
+            .map_err(|e| ExportError::Clipboard(e.to_string()))?;
+        if status.success() {
+            return Ok("file");
+        }
+    }
+    copy_text(&path.display().to_string())?;
+    Ok("path")
+}
+
 /// Write PNG to `path`.
 pub fn save_png(img: &RgbaImage, path: &Path) -> Result<(), ExportError> {
     if let Some(parent) = path.parent() {
@@ -155,5 +190,19 @@ mod tests {
     fn export_target_labels() {
         assert_eq!(ExportTarget::File.as_str(), "file");
         assert_eq!(ExportTarget::Clipboard.as_str(), "clipboard");
+    }
+
+    #[test]
+    fn copy_text_roundtrip() {
+        // Clipboard may be unavailable in some CI sandboxes.
+        if copy_text("mira-test-clipboard").is_err() {
+            return;
+        }
+        let Ok(mut clipboard) = Clipboard::new() else {
+            return;
+        };
+        if let Ok(text) = clipboard.get_text() {
+            assert_eq!(text, "mira-test-clipboard");
+        }
     }
 }

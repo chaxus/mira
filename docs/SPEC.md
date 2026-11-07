@@ -49,7 +49,7 @@ Cross-platform screenshot and screen recording. Capability target: **Feishu / La
 | Show cursor | **P2** (`-k` clicks) |
 | Format | **P2** **mp4 only** (H.264); remux via ffmpeg / `avconvert` — no `.mov` delivery |
 | GIF | Supported when ffmpeg is resolved (vendor / `MIRA_FFMPEG` / PATH) |
-| Preview · download · clipboard | Partial (save path; clipboard later) |
+| Preview · download · clipboard | **P2** stop copies file (macOS) or path text; “Copy last path” button |
 
 ## Hotkeys
 

@@ -1005,9 +1005,41 @@ fn action_row_record(
                 match session.stop() {
                     Ok(path) => {
                         meta.set(path.display().to_string());
-                        status.set("recording saved".into());
+                        match export::copy_recording(&path) {
+                            Ok("file") => {
+                                status.set("recording saved · file on clipboard".into())
+                            }
+                            Ok(_) => {
+                                status.set("recording saved · path on clipboard".into())
+                            }
+                            Err(e) => status.set(format!(
+                                "recording saved · clipboard failed: {e}"
+                            )),
+                        }
                     }
                     Err(e) => status.set(format!("stop failed: {e}")),
+                }
+            }
+        }))
+        .child(press_chip("Copy last path", {
+            let status = status.clone();
+            let meta = meta.clone();
+            move || {
+                let path = meta.get();
+                if path.is_empty() || path == "No capture yet" {
+                    status.set("no recording path yet".into());
+                    return;
+                }
+                let p = std::path::PathBuf::from(&path);
+                match export::copy_recording(&p) {
+                    Ok(kind) => status.set(format!("copied recording {kind}")),
+                    Err(e) => {
+                        if let Err(e2) = export::copy_text(&path) {
+                            status.set(format!("clipboard failed: {e} / {e2}"));
+                        } else {
+                            status.set("copied path text".into());
+                        }
+                    }
                 }
             }
         }))

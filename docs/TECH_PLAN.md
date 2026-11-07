@@ -124,3 +124,4 @@ Rough release add-on if three desktop triples each carry ~15–25MB ffmpeg: **~4
 | 2026-11-06 | Capture “show cursor” toggle (SCK `showsCursor` / `screencapture -C`). |
 | 2026-11-06 | Remappable global hotkeys via panel + `hotkeys.conf` (global-hotkey string parse). |
 | 2026-11-07 | Drop `.mov` delivery — recordings finalize to **mp4** (or gif); missing remuxer is an error. |
+| 2026-11-07 | Stop record puts the mp4/gif on the clipboard (macOS file ref, else path text). |
